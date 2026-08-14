@@ -1,4 +1,4 @@
-package milk_web_backend;
+package com.radhikafarms.milkweb;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
