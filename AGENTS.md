@@ -788,3 +788,34 @@ BUILD THE PRODUCT.
 Do not spend another month planning the product.
 
 When a reasonable decision has already been made, implement it and keep moving.
+
+---
+
+# Documentation Requirements
+
+Every meaningful implementation milestone MUST update the documentation in docs/. Each documentation update should include, where applicable:
+
+1. What was implemented (files, APIs, database changes)
+2. Why it was implemented (context and rationale)
+3. Alternatives considered
+4. Trade-offs and disadvantages
+5. Data structures and algorithms used
+6. Time/space complexity where relevant
+7. Security implications
+8. Tests added or changed
+9. Problems encountered and how they were solved
+10. Lessons learned
+11. Interview takeaway
+12. Associated Git commit hash
+
+Development workflow that includes documentation:
+
+Plan → Explain → Implement → Test → Document → Review → Commit
+
+Documentation must clearly label items as:
+- IMPLEMENTED (code exists)
+- PLANNED / NOT YET IMPLEMENTED
+- INFERENCE (reason inferred; not explicitly recorded)
+
+Do NOT modify other parts of this file when updating this section.
+
