@@ -47,6 +47,17 @@ Existing endpoints (verified in code)
   - Returns CustomerResponse
 - Errors: 401 unauthorized if no token, 404 if no Customer record for user
 
+7) GET /api/owner/customers/{customerId}
+- Controller: CustomerController.getCustomerById (implemented in milestone 4A)
+- Authorization: ROLE_OWNER required (path under /api/owner/**)
+- Path variable: customerId (UUID)
+- Behavior:
+  - Uses CustomerService.getById(customerId)
+  - Finds Customer by primary-key ID with repository lookup
+  - Returns CustomerResponse
+- Errors: 401 unauthorized if no token, 403 forbidden for CUSTOMER or other non-OWNER users, 404 if the customer ID does not exist
+- Security: OWNER-only access; the endpoint does not trust a customer-supplied identity and instead uses the path ID directly
+
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)
 - Domain errors: PhoneAlreadyRegisteredException -> 409; CustomerNotFoundException -> 404

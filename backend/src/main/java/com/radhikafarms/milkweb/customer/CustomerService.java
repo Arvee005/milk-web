@@ -47,6 +47,11 @@ public class CustomerService {
         return saved;
     }
 
+    public Customer getById(UUID customerId) {
+        return customerRepository.findById(customerId)
+                .orElseThrow(() -> new CustomerNotFoundException("Customer not found for id: " + customerId));
+    }
+
     public Customer getByUserId(UUID userId) {
         return customerRepository.findByUserId(userId)
                 .orElseThrow(() -> new CustomerNotFoundException(userId));

@@ -40,6 +40,12 @@ public class CustomerController {
         return toResponse(customer);
     }
 
+    @GetMapping("/api/owner/customers/{customerId}")
+    public CustomerResponse getCustomerById(@PathVariable UUID customerId) {
+        Customer customer = customerService.getById(customerId);
+        return toResponse(customer);
+    }
+
     private CustomerResponse toResponse(Customer c) {
         return new CustomerResponse(
                 c.getId(),

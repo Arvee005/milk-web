@@ -80,10 +80,70 @@ class CustomerControllerTest {
     }
 
     @Test
-    void customerCanGetOwnProfile() throws Exception {
-        // create customer for this user via service
+    void ownerCanGetCustomer() throws Exception {
+        userService.createUser("9000000003", "ownerpass", UserRole.OWNER);
+        String ownerToken = loginAndGetToken("9000000003", "ownerpass");
+
         OwnerCreateCustomerRequest req = new OwnerCreateCustomerRequest(
-                "9000000003",
+                "9876543213",
+                "secret123",
+                "Existing Customer",
+                "Addr",
+                BillingType.MONTHLY,
+                CustomerStatus.ACTIVE,
+                null
+        );
+        Customer created = customerService.createCustomer(req);
+
+        mockMvc.perform(get("/api/owner/customers/{customerId}", created.getId())
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(created.getId().toString()))
+                .andExpect(jsonPath("$.phone").value("9876543213"))
+                .andExpect(jsonPath("$.name").value("Existing Customer"));
+    }
+
+    @Test
+    void ownerGets404ForUnknownCustomer() throws Exception {
+        userService.createUser("9000000003", "ownerpass", UserRole.OWNER);
+        String ownerToken = loginAndGetToken("9000000003", "ownerpass");
+
+        mockMvc.perform(get("/api/owner/customers/{customerId}", java.util.UUID.randomUUID())
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void customerCannotGetOwnerCustomerEndpoint() throws Exception {
+        userService.createUser("9000000004", "custpass", UserRole.CUSTOMER);
+        String custToken = loginAndGetToken("9000000004", "custpass");
+
+        OwnerCreateCustomerRequest req = new OwnerCreateCustomerRequest(
+                "9876543214",
+                "secret123",
+                "Customer Name",
+                "Addr",
+                BillingType.MONTHLY,
+                CustomerStatus.ACTIVE,
+                null
+        );
+        Customer created = customerService.createCustomer(req);
+
+        mockMvc.perform(get("/api/owner/customers/{customerId}", created.getId())
+                        .header("Authorization", "Bearer " + custToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void unauthenticatedCannotGetOwnerCustomer() throws Exception {
+        mockMvc.perform(get("/api/owner/customers/{customerId}", java.util.UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void customerCanGetOwnProfile() throws Exception {
+        OwnerCreateCustomerRequest req = new OwnerCreateCustomerRequest(
+                "9000000005",
                 "custpass",
                 "Existing",
                 "Addr",
@@ -91,16 +151,14 @@ class CustomerControllerTest {
                 CustomerStatus.ACTIVE,
                 null
         );
-        // create via service to ensure linkage
-        // create via service to ensure linkage
         customerService.createCustomer(req);
 
-        String token = loginAndGetToken("9000000003", "custpass");
+        String token = loginAndGetToken("9000000005", "custpass");
 
         mockMvc.perform(get("/api/customer/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.phone").value("9000000003"))
+                .andExpect(jsonPath("$.phone").value("9000000005"))
                 .andExpect(jsonPath("$.name").value("Existing"));
     }
 

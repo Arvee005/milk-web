@@ -43,6 +43,16 @@ What is it: In-memory relational DB used for tests.
 Why: Fast tests and isolation; no dependence on external DB.
 Milk Web example: tests run using H2 configured in application-dev.properties.
 
+## Repository lookup by primary key
+What is it: A repository method that queries a record by its unique identifier, usually `findById(...)`.
+Why we use it: It is the direct and efficient way to fetch a single entity when the consumer already has a stable ID.
+Why not the obvious alternative: We do not fetch all customers and filter in memory; the DB handles the lookup using the primary key index.
+Milk Web example: CustomerService.getById(customerId) delegates to `customerRepository.findById(customerId)` for the owner-read endpoint.
+Time complexity: O(1) average-case for key lookup in a structured DB index.
+Space complexity: O(1) for the in-memory result object, excluding framework overhead.
+Trade-offs: Very fast, but requires a meaningful identifier and correct authorization checks in the service layer.
+Interview explanation: We use primary-key lookups when the API already knows the record ID; this is lower-cost and simpler than list-and-filter patterns.
+
 ## Future / when introduced
 - Caching strategies (if performance needs grow)
 - Pagination and filtering for list endpoints

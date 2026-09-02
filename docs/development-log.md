@@ -189,6 +189,55 @@ After this milestone, backend tests reported:
 - Customer creation creates a User (role=CUSTOMER) and Customer atomically in a transaction.
 - Customer endpoints use role-based access and @AuthenticationPrincipal to identify the caller.
 
+# Milestone 10 — OWNER customer lookup by ID
+
+## Date
+2026-08-21 (local milestone work)
+
+## Git Commit
+Not yet committed; local implementation only.
+
+## What We Did
+Added a read-by-ID endpoint for authenticated owners: GET /api/owner/customers/{customerId}. The controller delegates to CustomerService, which calls CustomerRepository.findById(customerId) and returns a CustomerResponse DTO.
+
+## Why We Did It
+The project already supported owner-created customer records and customer self-profile access. The next smallest milestone was to let an OWNER fetch any existing customer profile by its ID without exposing JPA entities or allowing CUSTOMER users to access owner-only routes.
+
+## Technical Concepts
+- Repository primary-key lookup
+- DTO return contract
+- URL-based role authorization
+- 404 handling via CustomerNotFoundException
+
+## Important Files
+- backend/src/main/java/com/radhikafarms/milkweb/customer/CustomerService.java
+- backend/src/main/java/com/radhikafarms/milkweb/customer/CustomerController.java
+- backend/src/test/java/com/radhikafarms/milkweb/customer/CustomerControllerTest.java
+
+## Design Decisions
+FACT: The project already uses controller/service/repository layering and DTO-based API responses.
+INFERENCE: This endpoint follows the same pattern to keep HTTP, business logic, and persistence concerns separate.
+
+## Problems Encountered
+No production issue encountered in inspection. The main concern was correctness of authorization and not exposing entity internals.
+
+## How We Solved Them
+By using the existing security rules in SecurityConfig, reusing CustomerResponse, and mapping missing customer IDs to CustomerNotFoundException.
+
+## Tests
+Added controller tests covering:
+- OWNER success
+- OWNER 404 for unknown customer
+- CUSTOMER forbidden access
+- unauthenticated access denied
+
+## Lessons Learned
+- Repository primary-key lookups are the simplest way to support read-by-ID in this layered architecture.
+- DTOs remain essential for keeping API contracts stable and avoiding entity leakage.
+
+## Interview Takeaway
+The owner lookup is intentionally narrow: it allows an OWNER to fetch a specific customer record by ID while preserving the same security and DTO boundaries already used elsewhere in the API.
+
 # Java 25 -> Java 21 incident
 
 ## Date

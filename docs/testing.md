@@ -19,7 +19,8 @@ How to run tests
   cd backend && ./mvnw test
 
 Test status (current)
-- After the Customer milestone, the backend reports 28 tests passing (no failures).
+- After the OWNER customer lookup milestone, the backend suite is expected to include the previous tests plus the new owner-read checks.
+- The current milestone should be validated with the full backend suite via `cd backend && ./mvnw test`.
 
 Test best practices
 - Use H2 for fast, isolated tests and avoid depending on production DB state.
