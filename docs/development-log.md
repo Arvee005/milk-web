@@ -238,6 +238,52 @@ Added controller tests covering:
 ## Interview Takeaway
 The owner lookup is intentionally narrow: it allows an OWNER to fetch a specific customer record by ID while preserving the same security and DTO boundaries already used elsewhere in the API.
 
+# Milestone 11 — OWNER customer list
+
+## Date
+2026-09-02 (local milestone work)
+
+## Git Commit
+Not yet committed; placeholder for new commit.
+
+## What We Did
+Implemented GET /api/owner/customers which returns a JSON array of CustomerResponse DTOs for authenticated OWNERs. The controller delegates to CustomerService.listAll(), which calls CustomerRepository.findAll().
+
+## Why We Did It
+This milestone provides owners a simple way to retrieve all customer profiles. Pagination and fetch optimizations were intentionally deferred to keep the change minimal and consistent with prior milestones.
+
+## Technical Concepts
+- JpaRepository.findAll()
+- DTO mapping from entity to API response
+- Role-based URL authorization
+- Empty list handling (200 OK with [])
+
+## Important Files
+- backend/src/main/java/com/radhikafarms/milkweb/customer/CustomerService.java
+- backend/src/main/java/com/radhikafarms/milkweb/customer/CustomerController.java
+- backend/src/test/java/com/radhikafarms/milkweb/customer/CustomerControllerTest.java
+
+## Design Decisions
+FACT: Reuse existing controller/service/repository pattern and CustomerResponse DTO.
+INFERENCE: The system currently expects OWNER to access all customers; per-owner scoping is not implemented in the data model.
+
+## Tests
+Added controller tests covering:
+- OWNER can list customers
+- OWNER gets empty list when none exist
+- CUSTOMER is forbidden from listing
+- Unauthenticated requests get 401
+
+## Notes
+- Pagination was deliberately deferred. If performance issues or UI needs arise, switch to Page/Pageable and add fetch-joins to avoid N+1 queries.
+
+## Lessons Learned
+- Small, incremental APIs are easiest to maintain and test.
+- Always consider lazy relationships when mapping entities to DTOs (possible N+1).
+
+## Interview Takeaway
+We added a simple owner listing endpoint that adheres to the existing layered architecture and respects DTO boundaries; future scaling will introduce pagination and fetch-join optimizations.
+
 # Java 25 -> Java 21 incident
 
 ## Date

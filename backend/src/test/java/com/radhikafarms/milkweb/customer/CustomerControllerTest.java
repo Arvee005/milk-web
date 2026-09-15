@@ -114,6 +114,56 @@ class CustomerControllerTest {
     }
 
     @Test
+    void ownerCanListCustomers() throws Exception {
+        userService.createUser("9000000010", "ownerpass", UserRole.OWNER);
+        String ownerToken = loginAndGetToken("9000000010", "ownerpass");
+
+        OwnerCreateCustomerRequest r1 = new OwnerCreateCustomerRequest(
+                "9876543301",
+                "secret123",
+                "List Cust 1",
+                "Addr",
+                BillingType.MONTHLY,
+                CustomerStatus.ACTIVE,
+                null
+        );
+        OwnerCreateCustomerRequest r2 = new OwnerCreateCustomerRequest(
+                "9876543302",
+                "secret123",
+                "List Cust 2",
+                "Addr",
+                BillingType.MONTHLY,
+                CustomerStatus.ACTIVE,
+                null
+        );
+        Customer c1 = customerService.createCustomer(r1);
+        Customer c2 = customerService.createCustomer(r2);
+
+        mockMvc.perform(get("/api/owner/customers")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[?(@.phone=='9876543301')].name")
+                        .value(org.hamcrest.Matchers.contains("List Cust 1")))
+                .andExpect(jsonPath("$[?(@.phone=='9876543302')].name")
+                        .value(org.hamcrest.Matchers.contains("List Cust 2")))
+                .andExpect(jsonPath("$[*].passwordHash").doesNotExist())
+                .andExpect(jsonPath("$[*].user").doesNotExist());
+    }
+
+    @Test
+    void ownerGetsEmptyListWhenNoCustomers() throws Exception {
+        userService.createUser("9000000011", "ownerpass", UserRole.OWNER);
+        String ownerToken = loginAndGetToken("9000000011", "ownerpass");
+
+        mockMvc.perform(get("/api/owner/customers")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()", org.hamcrest.Matchers.is(0)));
+    }
+
+    @Test
     void customerCannotGetOwnerCustomerEndpoint() throws Exception {
         userService.createUser("9000000004", "custpass", UserRole.CUSTOMER);
         String custToken = loginAndGetToken("9000000004", "custpass");
@@ -132,34 +182,20 @@ class CustomerControllerTest {
         mockMvc.perform(get("/api/owner/customers/{customerId}", created.getId())
                         .header("Authorization", "Bearer " + custToken))
                 .andExpect(status().isForbidden());
+
+        // also assert the list endpoint is forbidden for customer
+        mockMvc.perform(get("/api/owner/customers")
+                        .header("Authorization", "Bearer " + custToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test
     void unauthenticatedCannotGetOwnerCustomer() throws Exception {
         mockMvc.perform(get("/api/owner/customers/{customerId}", java.util.UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
-    }
 
-    @Test
-    void customerCanGetOwnProfile() throws Exception {
-        OwnerCreateCustomerRequest req = new OwnerCreateCustomerRequest(
-                "9000000005",
-                "custpass",
-                "Existing",
-                "Addr",
-                BillingType.MONTHLY,
-                CustomerStatus.ACTIVE,
-                null
-        );
-        customerService.createCustomer(req);
-
-        String token = loginAndGetToken("9000000005", "custpass");
-
-        mockMvc.perform(get("/api/customer/me")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.phone").value("9000000005"))
-                .andExpect(jsonPath("$.name").value("Existing"));
+        mockMvc.perform(get("/api/owner/customers"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

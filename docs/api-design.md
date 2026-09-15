@@ -58,6 +58,18 @@ Existing endpoints (verified in code)
 - Errors: 401 unauthorized if no token, 403 forbidden for CUSTOMER or other non-OWNER users, 404 if the customer ID does not exist
 - Security: OWNER-only access; the endpoint does not trust a customer-supplied identity and instead uses the path ID directly
 
+8) GET /api/owner/customers
+- Controller: CustomerController.listCustomers (implemented in milestone 4B)
+- Authorization: ROLE_OWNER required (path under /api/owner/**)
+- Behavior:
+  - Controller delegates to CustomerService.listAll()
+  - Service calls CustomerRepository.findAll()
+  - Controller maps each Customer to CustomerResponse and returns a JSON array
+  - If no customers exist, returns an empty array [] (HTTP 200)
+- Response type: List<CustomerResponse>
+- Errors: 401 unauthorized if no token, 403 forbidden for CUSTOMER or other non-OWNER users
+- Notes: This first-version intentionally does not implement pagination; it is suitable for small datasets. If dataset grows, switch to Page/Pageable and/or add fetch-join to avoid N+1 queries.
+
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)
 - Domain errors: PhoneAlreadyRegisteredException -> 409; CustomerNotFoundException -> 404

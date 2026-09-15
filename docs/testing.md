@@ -19,8 +19,20 @@ How to run tests
   cd backend && ./mvnw test
 
 Test status (current)
-- After the OWNER customer lookup milestone, the backend suite is expected to include the previous tests plus the new owner-read checks.
-- The current milestone should be validated with the full backend suite via `cd backend && ./mvnw test`.
+- The verified backend suite contains 33 tests.
+- Test result: 33 tests run, 0 failures, 0 errors, and 0 skipped.
+- The suite was verified with `cd backend && ./mvnw clean test`.
+
+New controller tests added for GET /api/owner/customers:
+- ownerCanListCustomers: verifies OWNER can retrieve a JSON array of CustomerResponse
+- ownerGetsEmptyListWhenNoCustomers: verifies empty array returned when no customers
+- customerCannotGetOwnerCustomerEndpoint: verifies CUSTOMER receives 403 for list endpoint
+- unauthenticatedCannotGetOwnerCustomer: verifies 401 for unauthenticated requests
+
+What these tests protect:
+- Role-based access control for owner-only endpoints
+- DTO boundary to prevent leaking JPA entities or sensitive fields
+- Correct empty-list behaviour (200 with [])
 
 Test best practices
 - Use H2 for fast, isolated tests and avoid depending on production DB state.

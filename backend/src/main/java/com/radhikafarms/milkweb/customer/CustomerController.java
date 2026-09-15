@@ -46,6 +46,12 @@ public class CustomerController {
         return toResponse(customer);
     }
 
+    @GetMapping("/api/owner/customers")
+    public java.util.List<CustomerResponse> listCustomers() {
+        java.util.List<Customer> customers = customerService.listAll();
+        return customers.stream().map(this::toResponse).toList();
+    }
+
     private CustomerResponse toResponse(Customer c) {
         return new CustomerResponse(
                 c.getId(),

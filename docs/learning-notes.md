@@ -53,6 +53,27 @@ Space complexity: O(1) for the in-memory result object, excluding framework over
 Trade-offs: Very fast, but requires a meaningful identifier and correct authorization checks in the service layer.
 Interview explanation: We use primary-key lookups when the API already knows the record ID; this is lower-cost and simpler than list-and-filter patterns.
 
+## Repository findAll and in-memory listing
+What is it: `JpaRepository.findAll()` returns all entities of a type from the database.
+Why we use it (first version): Simple, minimal API to return all records for small datasets and rapid development.
+Milk Web example: CustomerService.listAll() delegates to `customerRepository.findAll()` to back GET /api/owner/customers.
+Time complexity: O(n) where n is the number of customers (DB read + mapping).
+Space complexity: O(n) memory in the application for the list of entities and DTOs.
+Trade-offs:
+- Pros: Simple to implement, matches existing DTO boundaries, minimal frontend changes.
+- Cons: Not suitable for large n; may cause high memory usage and longer response times.
+
+## N+1 and fetch strategies
+Problem: Customer.user is LAZY. Mapping `customer.getUser().getId()` for each customer can trigger an extra SELECT per customer (N+1).
+Mitigations:
+- For small datasets accept the simple approach.
+- If N+1 becomes a problem, use a fetch join or @EntityGraph to retrieve Customer with User in one query, e.g.:
+  - @Query("select c from Customer c join fetch c.user")
+  - or define a repository method with @EntityGraph(attributePaths = {"user"})
+- Another option: use a projection or DTO fetch in the repository to avoid entity materialization.
+
+Why we deferred pagination/fetch-join now: incremental change, keep API small and easy to test. Add pagination and fetch-join in a later milestone when load/UX warrants.
+
 ## Future / when introduced
 - Caching strategies (if performance needs grow)
 - Pagination and filtering for list endpoints

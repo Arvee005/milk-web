@@ -52,6 +52,10 @@ public class CustomerService {
                 .orElseThrow(() -> new CustomerNotFoundException("Customer not found for id: " + customerId));
     }
 
+    public java.util.List<Customer> listAll() {
+        return customerRepository.findAll();
+    }
+
     public Customer getByUserId(UUID userId) {
         return customerRepository.findByUserId(userId)
                 .orElseThrow(() -> new CustomerNotFoundException(userId));
