@@ -19,8 +19,8 @@ How to run tests
   cd backend && ./mvnw test
 
 Test status (current)
-- The verified backend suite contains 33 tests.
-- Test result: 33 tests run, 0 failures, 0 errors, and 0 skipped.
+- The verified backend suite contains 41 tests.
+- Test result: 41 tests run, 0 failures, 0 errors, and 0 skipped.
 - The suite was verified with `cd backend && ./mvnw clean test`.
 
 New controller tests added for GET /api/owner/customers:
@@ -50,3 +50,7 @@ When to add tests
 - Add repository tests when adding entities or custom queries.
 - Add service tests for business rules.
 - Add controller tests for endpoint behavior and authorization.
+
+Milestone 4C update tests:
+- Controller tests cover successful OWNER updates, exact updated values, unchanged phone behavior when a `phone` request property is supplied, absence of `passwordHash` and nested `user`, 404 for unknown customers, 400 for blank name, missing required fields, malformed date, invalid enum, malformed UUID, 403 CUSTOMER access, and 401 unauthenticated access.
+- Service tests cover successful updates to all editable fields, unchanged User phone/password hash/role, and `CustomerNotFoundException` for an unknown customer.

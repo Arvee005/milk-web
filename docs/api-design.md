@@ -70,6 +70,21 @@ Existing endpoints (verified in code)
 - Errors: 401 unauthorized if no token, 403 forbidden for CUSTOMER or other non-OWNER users
 - Notes: This first-version intentionally does not implement pagination; it is suitable for small datasets. If dataset grows, switch to Page/Pageable and/or add fetch-join to avoid N+1 queries.
 
+9) PUT /api/owner/customers/{customerId}
+- Controller: CustomerController.updateCustomer
+- Authorization: ROLE_OWNER required (path under /api/owner/**)
+- Request DTO: OwnerUpdateCustomerRequest
+  - name: required, non-blank
+  - address: optional
+  - billingType: required BillingType
+  - status: required CustomerStatus
+  - joinDate: required LocalDate
+- Editable fields: name, address, billingType, status, joinDate
+- Phone is not editable through this endpoint because it is also the User authentication/login identifier. A dedicated phone/account-identifier flow is deferred.
+- Response DTO: CustomerResponse
+- Behavior: Updates only the customer profile fields above and returns HTTP 200.
+- Errors: 400 validation or malformed input, 401 unauthorized, 403 forbidden for non-OWNER users, 404 if the customer ID does not exist
+
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)
 - Domain errors: PhoneAlreadyRegisteredException -> 409; CustomerNotFoundException -> 404

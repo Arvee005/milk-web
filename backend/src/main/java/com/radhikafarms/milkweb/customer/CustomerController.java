@@ -52,6 +52,14 @@ public class CustomerController {
         return customers.stream().map(this::toResponse).toList();
     }
 
+    @PutMapping("/api/owner/customers/{customerId}")
+    public CustomerResponse updateCustomer(
+            @PathVariable UUID customerId,
+            @Valid @RequestBody OwnerUpdateCustomerRequest request
+    ) {
+        return toResponse(customerService.updateCustomer(customerId, request));
+    }
+
     private CustomerResponse toResponse(Customer c) {
         return new CustomerResponse(
                 c.getId(),

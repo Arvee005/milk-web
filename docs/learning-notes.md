@@ -74,6 +74,31 @@ Mitigations:
 
 Why we deferred pagination/fetch-join now: incremental change, keep API small and easy to test. Add pagination and fetch-join in a later milestone when load/UX warrants.
 
+## PUT update semantics
+What is it: PUT replaces the editable representation of a resource at a known URL.
+Why we use it: The OWNER update request contains the complete editable customer profile.
+Milk Web example: PUT /api/owner/customers/{customerId} updates name, address, billingType, status, and joinDate.
+Trade-offs: Full representations are straightforward to validate, but clients must send all required editable fields. PATCH may be more convenient for partial changes but requires clearer omission/null semantics.
+
+## Request DTO validation and entity boundaries
+What is it: A request DTO defines and validates the fields an API operation accepts without binding directly to a JPA entity.
+Why we use it: OwnerUpdateCustomerRequest excludes IDs, authentication fields, role, password data, and nested relationships.
+Milk Web example: The update endpoint accepts only editable customer profile fields and returns CustomerResponse.
+Security implication: Excluding password, passwordHash, role, and phone prevents this profile endpoint from becoming an authentication-account mutation flow.
+
+## Transactional customer updates
+What is it: A transaction groups the database work for one logical operation.
+Why we use it: CustomerService.updateCustomer is transactional and provides a consistent boundary even though this milestone changes only Customer fields.
+Milk Web example: The update loads one Customer, changes its editable fields, and returns it within one service transaction.
+Time complexity: O(1) application-side work for one customer, excluding database internals.
+Space complexity: O(1) application-side working memory, excluding persistence-context overhead.
+
+## Deferring phone modification
+What is it: Phone is both Customer profile data and the User authentication/login identifier.
+Why we defer it: Updating it safely would require coordinated account-identifier handling across both entities and additional security considerations.
+Milk Web example: OwnerUpdateCustomerRequest intentionally has no phone field, and the update endpoint leaves User and phone data unchanged.
+INFERENCE: A future dedicated account-identifier flow may require re-authentication, duplicate checks, and carefully coordinated updates.
+
 ## Future / when introduced
 - Caching strategies (if performance needs grow)
 - Pagination and filtering for list endpoints

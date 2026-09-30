@@ -56,6 +56,20 @@ public class CustomerService {
         return customerRepository.findAll();
     }
 
+    @Transactional
+    public Customer updateCustomer(UUID customerId, OwnerUpdateCustomerRequest request) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new CustomerNotFoundException("Customer not found for id: " + customerId));
+
+        customer.setName(request.name());
+        customer.setAddress(request.address());
+        customer.setBillingType(request.billingType());
+        customer.setStatus(request.status());
+        customer.setJoinDate(request.joinDate());
+
+        return customer;
+    }
+
     public Customer getByUserId(UUID userId) {
         return customerRepository.findByUserId(userId)
                 .orElseThrow(() -> new CustomerNotFoundException(userId));

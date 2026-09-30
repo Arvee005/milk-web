@@ -284,6 +284,30 @@ Added controller tests covering:
 ## Interview Takeaway
 We added a simple owner listing endpoint that adheres to the existing layered architecture and respects DTO boundaries; future scaling will introduce pagination and fetch-join optimizations.
 
+# Milestone 4C — OWNER customer profile update
+
+## Date
+2026-09-15 (local milestone work)
+
+## Git Commit
+Not yet committed; placeholder for new commit.
+
+## What We Did
+Implemented PUT /api/owner/customers/{customerId} for OWNER profile updates using OwnerUpdateCustomerRequest and the existing CustomerResponse DTO.
+
+## Design Decision
+FACT: The update accepts only name, address, billingType, status, and joinDate.
+FACT: Phone is excluded because it is also the User authentication/login identifier.
+INFERENCE: A separate phone/account-identifier flow can be introduced later with stronger account-security handling.
+
+## Tests
+Added controller and service coverage for successful updates, unchanged phone behavior, missing customers, validation, OWNER authorization, CUSTOMER rejection, unauthenticated rejection, DTO boundaries, and User/Customer consistency.
+Verification: `./mvnw clean test` completed with 41 tests, 0 failures, 0 errors, and 0 skipped (BUILD SUCCESS).
+
+## Notes
+- Password, passwordHash, role, IDs, createdAt, and nested User data are not accepted or returned.
+- The update is transactional, although it changes only Customer fields in this milestone.
+
 # Java 25 -> Java 21 incident
 
 ## Date

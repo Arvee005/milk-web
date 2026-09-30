@@ -33,6 +33,7 @@ Token expiration and rotation
 Protection measures
 - Never expose passwordHash in API responses (DTOs prevent this).
 - Validate input (phone pattern, required fields) to reduce injection/invalid data risks.
+- The OWNER customer profile update endpoint does not accept or modify password, passwordHash, role, or the phone/login identifier. This is a milestone-level endpoint decision; a dedicated account-identifier or credential flow may be designed later.
 
 Future security recommendations (PLANNED)
 - Use HTTPS in production and enforce secure cookie or Authorization header usage on mobile.

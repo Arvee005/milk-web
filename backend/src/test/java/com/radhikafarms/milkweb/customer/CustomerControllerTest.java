@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -164,6 +165,121 @@ class CustomerControllerTest {
     }
 
     @Test
+    void ownerCanUpdateCustomer() throws Exception {
+        userService.createUser("9000000012", "ownerpass", UserRole.OWNER);
+        String ownerToken = loginAndGetToken("9000000012", "ownerpass");
+        Customer created = customerService.createCustomer(new OwnerCreateCustomerRequest(
+                "9876543303",
+                "secret123",
+                "Original Name",
+                "Original Address",
+                BillingType.MONTHLY,
+                CustomerStatus.ACTIVE,
+                java.time.LocalDate.of(2026, 1, 1)
+        ));
+
+        mockMvc.perform(put("/api/owner/customers/{customerId}", created.getId())
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequestJson("Updated Name", "Updated Address", "PREPAID", "PAUSED")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phone").value("9876543303"))
+                .andExpect(jsonPath("$.name").value("Updated Name"))
+                .andExpect(jsonPath("$.address").value("Updated Address"))
+                .andExpect(jsonPath("$.billingType").value("PREPAID"))
+                .andExpect(jsonPath("$.status").value("PAUSED"))
+                .andExpect(jsonPath("$.joinDate").value("2026-02-02"))
+                .andExpect(jsonPath("$.passwordHash").doesNotExist())
+                .andExpect(jsonPath("$.user").doesNotExist());
+    }
+
+    @Test
+    void ownerCannotChangePhoneThroughUpdate() throws Exception {
+        userService.createUser("9000000013", "ownerpass", UserRole.OWNER);
+        String ownerToken = loginAndGetToken("9000000013", "ownerpass");
+        Customer created = customerService.createCustomer(new OwnerCreateCustomerRequest(
+                "9876543304",
+                "secret123",
+                "Original Name",
+                "Original Address",
+                BillingType.MONTHLY,
+                CustomerStatus.ACTIVE,
+                java.time.LocalDate.of(2026, 1, 1)
+        ));
+
+        String requestWithPhone = """
+                {
+                  "phone": "9876543399",
+                  "name": "Updated Name",
+                  "address": "Updated Address",
+                  "billingType": "MONTHLY",
+                  "status": "ACTIVE",
+                  "joinDate": "2026-02-02"
+                }
+                """;
+
+        mockMvc.perform(put("/api/owner/customers/{customerId}", created.getId())
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestWithPhone))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phone").value("9876543304"));
+    }
+
+    @Test
+    void ownerGets404WhenUpdatingUnknownCustomer() throws Exception {
+        userService.createUser("9000000014", "ownerpass", UserRole.OWNER);
+        String ownerToken = loginAndGetToken("9000000014", "ownerpass");
+        mockMvc.perform(put("/api/owner/customers/{customerId}", java.util.UUID.randomUUID())
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequestJson("Updated Name", "Updated Address", "MONTHLY", "ACTIVE")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void invalidUpdateRequestReturns400() throws Exception {
+        userService.createUser("9000000015", "ownerpass", UserRole.OWNER);
+        String ownerToken = loginAndGetToken("9000000015", "ownerpass");
+
+        String customerId = java.util.UUID.randomUUID().toString();
+        String[] invalidRequests = {
+                """
+                        {"name":"","address":"Address","billingType":"MONTHLY","status":"ACTIVE","joinDate":"2026-02-02"}
+                        """,
+                """
+                        {"name":"Name","address":"Address","status":"ACTIVE","joinDate":"2026-02-02"}
+                        """,
+                """
+                        {"name":"Name","address":"Address","billingType":"MONTHLY","joinDate":"2026-02-02"}
+                        """,
+                """
+                        {"name":"Name","address":"Address","billingType":"MONTHLY","status":"ACTIVE"}
+                        """,
+                """
+                        {"name":"Name","address":"Address","billingType":"MONTHLY","status":"ACTIVE","joinDate":"not-a-date"}
+                        """,
+                """
+                        {"name":"Name","address":"Address","billingType":"INVALID","status":"ACTIVE","joinDate":"2026-02-02"}
+                        """
+        };
+
+        for (String request : invalidRequests) {
+            mockMvc.perform(put("/api/owner/customers/{customerId}", customerId)
+                            .header("Authorization", "Bearer " + ownerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mockMvc.perform(put("/api/owner/customers/not-a-uuid")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequestJson("Name", "Address", "MONTHLY", "ACTIVE")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void customerCannotGetOwnerCustomerEndpoint() throws Exception {
         userService.createUser("9000000004", "custpass", UserRole.CUSTOMER);
         String custToken = loginAndGetToken("9000000004", "custpass");
@@ -195,6 +311,25 @@ class CustomerControllerTest {
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/owner/customers"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void customerCannotUpdateOwnerCustomer() throws Exception {
+        userService.createUser("9000000016", "custpass", UserRole.CUSTOMER);
+        String custToken = loginAndGetToken("9000000016", "custpass");
+        mockMvc.perform(put("/api/owner/customers/{customerId}", java.util.UUID.randomUUID())
+                        .header("Authorization", "Bearer " + custToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequestJson("Updated Name", "Updated Address", "MONTHLY", "ACTIVE")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void unauthenticatedCannotUpdateOwnerCustomer() throws Exception {
+        mockMvc.perform(put("/api/owner/customers/{customerId}", java.util.UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequestJson("Updated Name", "Updated Address", "MONTHLY", "ACTIVE")))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -271,5 +406,17 @@ class CustomerControllerTest {
                 .getContentAsString();
 
         return objectMapper.readTree(response).get("token").asText();
+    }
+
+    private String updateRequestJson(String name, String address, String billingType, String status) {
+        return """
+                {
+                  "name": "%s",
+                  "address": "%s",
+                  "billingType": "%s",
+                  "status": "%s",
+                  "joinDate": "2026-02-02"
+                }
+                """.formatted(name, address, billingType, status);
     }
 }
