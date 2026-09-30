@@ -19,8 +19,8 @@ How to run tests
   cd backend && ./mvnw test
 
 Test status (current)
-- The verified backend suite contains 41 tests.
-- Test result: 41 tests run, 0 failures, 0 errors, and 0 skipped.
+- The verified backend suite contains 56 tests.
+- Test result: 56 tests run, 0 failures, 0 errors, and 0 skipped.
 - The suite was verified with `cd backend && ./mvnw clean test`.
 
 New controller tests added for GET /api/owner/customers:
@@ -54,3 +54,25 @@ When to add tests
 Milestone 4C update tests:
 - Controller tests cover successful OWNER updates, exact updated values, unchanged phone behavior when a `phone` request property is supplied, absence of `passwordHash` and nested `user`, 404 for unknown customers, 400 for blank name, missing required fields, malformed date, invalid enum, malformed UUID, 403 CUSTOMER access, and 401 unauthenticated access.
 - Service tests cover successful updates to all editable fields, unchanged User phone/password hash/role, and `CustomerNotFoundException` for an unknown customer.
+
+## Product Management tests
+Product service tests cover:
+- creation with ACTIVE default and generated timestamps
+- duplicate product names
+- updating name, description, unit, price, and status while preserving ID and createdAt
+- unknown product reads/updates
+- duplicate-name update rejection and retaining a product's own name
+
+Product controller tests cover:
+- OWNER create (201, Location, DTO fields, default status)
+- OWNER list containing ACTIVE and INACTIVE products
+- get success and 404
+- full update response and stable ID/createdAt
+- duplicate create/update conflicts
+- invalid/missing fields, enum values, price range/scale, and malformed UUID
+- CUSTOMER 403 and unauthenticated 401 for all OWNER operations
+- DTO boundary checks for internal fields and future relationships
+
+No ProductRepositoryTest was added: the module uses only the derived duplicate-name query plus inherited JpaRepository operations; persistence and constraint behavior are exercised through service/controller integration tests.
+
+Product module verification: 15 Product tests (9 controller, 6 service); full suite total 56 tests, 0 failures, 0 errors, 0 skipped.

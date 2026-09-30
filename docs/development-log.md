@@ -308,6 +308,52 @@ Verification: `./mvnw clean test` completed with 41 tests, 0 failures, 0 errors,
 - Password, passwordHash, role, IDs, createdAt, and nested User data are not accepted or returned.
 - The update is transactional, although it changes only Customer fields in this milestone.
 
+# Product Management Module
+
+## Date
+2026-09-30 (local module work)
+
+## Git Commit
+Not yet committed; commit hash will be recorded after a commit exists.
+
+## What We Did
+IMPLEMENTED: Added an independent Product entity and OWNER APIs to create, list, retrieve, and update products. Product responses use DTOs; product status is updated through the general PUT representation.
+
+## Design Decisions
+- IMPLEMENTED: Product.price is a current catalog price represented by BigDecimal; no price-history table was added.
+- IMPLEMENTED: Product names have a database unique constraint; no normalized name column was introduced.
+- IMPLEMENTED: Product status is ACTIVE/INACTIVE and is part of the PUT update request.
+- IMPLEMENTED: OWNER list includes active and inactive products; no delete endpoint exists.
+- INFERENCE: The initial deployment uses a single currency (likely INR); no currency field or configuration was added.
+- PLANNED / NOT YET IMPLEMENTED: DailyRecord will snapshot the applicable unit price so historical records and bills do not depend on current Product.price.
+
+## Technical Concepts
+- BigDecimal and NUMERIC(12,2) monetary storage
+- String-persisted enums for unit and status
+- Database uniqueness constraints
+- REST DTO request/response boundaries
+- Server-managed timestamps
+
+## Tests
+Product service and controller tests cover creation/default status, listing both statuses, lookup and not-found, updates and stable identity/createdAt, duplicate names, validation, DTO boundaries, OWNER authorization, CUSTOMER denial, and unauthenticated denial. Full-suite totals are recorded after the verified test run.
+Verification: `./mvnw clean test` completed with 56 tests, 0 failures, 0 errors, and 0 skipped (BUILD SUCCESS), including 9 ProductControllerTest and 6 ProductServiceTest cases.
+
+## Risks and Follow-up
+- Product list is unpaginated, appropriate for the initial catalog scope; revisit if measured growth requires paging.
+- Database unique constraint protects concurrent duplicate names; database collation determines case matching.
+- Subscription, DailyRecord, Billing, Payment, customer catalog access, migrations, and frontend UI remain PLANNED / NOT YET IMPLEMENTED.
+
+## Problems Encountered
+No Product-specific implementation problem remained after the full backend suite passed.
+
+## Lessons Learned
+- BigDecimal plus an explicit database precision/scale prevents binary floating-point money representation.
+- A service duplicate-name check improves the normal response, while the database unique constraint protects the invariant under concurrent writes.
+- Current catalog pricing must remain separate from future historical transaction pricing.
+
+## Interview Takeaway
+Product stores the current catalog price and uses an explicit status, while future transaction records must snapshot prices to preserve historical billing. OWNER APIs use DTOs and existing role-based security, keeping the catalog backend independent of the web client.
+
 # Java 25 -> Java 21 incident
 
 ## Date

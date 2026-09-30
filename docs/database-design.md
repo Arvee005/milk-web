@@ -35,16 +35,36 @@ Customer
 - Notes:
   - Customer is separate from User: authentication data (User) and business data (Customer) are kept separate.
 
+Product
+- Table: products
+- Primary key: id (UUID, generated)
+- Fields:
+  - id: UUID
+  - name: String (required, maximum length 100, unique)
+  - description: String (optional, maximum length 500)
+  - unit: ProductUnit enum (LITRE, KILOGRAM), persisted as STRING
+  - price: BigDecimal (required, NUMERIC(12,2)); current catalog price
+  - status: ProductStatus enum (ACTIVE, INACTIVE), persisted as STRING; defaults to ACTIVE
+  - created_at: Instant (server-generated, immutable after creation)
+  - updated_at: Instant (server-managed on update)
+- Constraints:
+  - unique constraint on name (uk_products_name)
+- Notes:
+  - Product has no JPA relationships to future modules yet.
+  - Zero price is permitted; negative price and values exceeding NUMERIC(12,2) precision/scale are rejected by request validation.
+  - Product.price is not a historical transaction price.
+
 Enums
 - BillingType: PREPAID, MONTHLY
 - CustomerStatus: ACTIVE, PAUSED, INACTIVE
+- ProductUnit: LITRE, KILOGRAM
+- ProductStatus: ACTIVE, INACTIVE
 
 Databases
 - Tests / development: H2 (in-memory) — configured in application-dev.properties
 - Production: PostgreSQL (dependency declared in pom.xml)
 
 Planned / Not Yet Implemented Entities (from AGENTS.md / domain model)
-- Product
 - Subscription
 - DailyRecord
 - Bill
@@ -54,7 +74,10 @@ Planned / Not Yet Implemented Entities (from AGENTS.md / domain model)
 These are described in AGENTS.md and will be implemented later. They are explicitly NOT yet present in the schema and are listed here so future migrations and design can reference them.
 
 Important business/data-design rule (planned)
-- DailyRecord must snapshot unit_price at the time of transaction; historical bills must not re-calc using current Product price. This rule is recorded in AGENTS.md and should be followed when implementing billing and daily records.
+- DailyRecord must snapshot unit_price at the time of transaction; historical bills must not re-calc using current Product.price. This rule is recorded in AGENTS.md and must be followed when implementing daily records and billing. **PLANNED / NOT YET IMPLEMENTED.**
+
+Product price/currency note
+- **INFERENCE:** The initial business is assumed to use one currency (likely INR based on project examples). No currency field or currency configuration is implemented. Revisit before supporting multiple currencies.
 
 Indexes and performance
 - Current model includes unique indexes (phone, user_id). Additional indexes (customer, product, date) should be added when queries require them (AGENTS.md guidance).

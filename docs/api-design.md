@@ -85,6 +85,39 @@ Existing endpoints (verified in code)
 - Behavior: Updates only the customer profile fields above and returns HTTP 200.
 - Errors: 400 validation or malformed input, 401 unauthorized, 403 forbidden for non-OWNER users, 404 if the customer ID does not exist
 
+## Product Management
+
+Product endpoints are OWNER-only under the existing `/api/owner/**` security rule. All successful responses use `ProductResponse`; JPA entities are not returned.
+
+1) POST /api/owner/products
+- Request DTO: `OwnerCreateProductRequest` (`name`, optional `description`, `unit`, `price`)
+- New products default to `ACTIVE`.
+- Success: 201 Created with `ProductResponse` and a Location header.
+- Errors: 400 invalid request, 401 unauthenticated, 403 non-OWNER, 409 duplicate product name.
+
+2) GET /api/owner/products
+- Returns all products, including ACTIVE and INACTIVE, as `List<ProductResponse>`.
+- Success: 200 OK; errors include 401 unauthenticated and 403 non-OWNER.
+
+3) GET /api/owner/products/{productId}
+- Path variable: product UUID.
+- Success: 200 OK with `ProductResponse`.
+- Errors: 400 malformed UUID, 401 unauthenticated, 403 non-OWNER, 404 unknown product.
+
+4) PUT /api/owner/products/{productId}
+- Request DTO: complete `OwnerUpdateProductRequest` (`name`, optional `description`, `unit`, `price`, `status`).
+- Updates catalog values and status; ID and timestamps are server-managed.
+- Success: 200 OK with `ProductResponse`.
+- Errors: 400 invalid request, 401 unauthenticated, 403 non-OWNER, 404 unknown product, 409 duplicate product name.
+
+Validation: names are non-blank and at most 100 characters; descriptions are optional and at most 500 characters; unit and price are required on create/update; update status is required. Prices use `BigDecimal`, must be nonnegative with at most 10 integral digits and 2 fractional digits. Zero is allowed. Invalid precision is rejected rather than rounded.
+
+Product names have a database uniqueness constraint. Matching semantics follow the database collation; case-insensitive uniqueness is not implemented.
+
+`Product.price` is the current catalog price only. **PLANNED / NOT YET IMPLEMENTED:** future `DailyRecord` entries must snapshot the applicable unit price so later Product price changes do not change historical transactions or bills.
+
+There is no delete endpoint. Inactive products remain visible to OWNERs. Customer product browsing is **PLANNED / NOT YET IMPLEMENTED** and is not part of this module.
+
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)
 - Domain errors: PhoneAlreadyRegisteredException -> 409; CustomerNotFoundException -> 404

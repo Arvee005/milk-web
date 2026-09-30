@@ -99,6 +99,34 @@ Why we defer it: Updating it safely would require coordinated account-identifier
 Milk Web example: OwnerUpdateCustomerRequest intentionally has no phone field, and the update endpoint leaves User and phone data unchanged.
 INFERENCE: A future dedicated account-identifier flow may require re-authentication, duplicate checks, and carefully coordinated updates.
 
+## BigDecimal for product prices
+What is it: An arbitrary-precision decimal type suitable for exact decimal arithmetic.
+Why we use it: Product prices are monetary values; binary floating-point types can introduce representation and rounding errors.
+Milk Web example: Product.price uses BigDecimal and is persisted as NUMERIC(12,2).
+Trade-offs: Precision and scale must be chosen, and rounding behavior must be explicit in future calculations. This API rejects prices with more than two fractional digits rather than silently rounding them.
+
+## Database uniqueness constraints
+What is it: A database-enforced rule that prevents duplicate values even when multiple requests race.
+Why we use it: Product names are unique in the database; the service pre-check provides a clear 409 for ordinary duplicate requests, while the constraint remains authoritative for concurrent writes.
+Milk Web example: `uk_products_name` enforces uniqueness on products.name.
+Trade-offs: Name matching follows the database collation; case-insensitive normalization is not implemented.
+
+## Product status and historical price
+What is it: ProductStatus represents whether a product is currently offered; Product.price is the current catalog price.
+Why we use it: INACTIVE products remain available to owners for management without deleting product identity.
+Milk Web example: OWNER can update Product.status as part of the complete PUT request.
+PLANNED / NOT YET IMPLEMENTED: DailyRecord must snapshot unit price at supply time; historical bills must not use a later Product.price.
+Trade-offs: An enum is more descriptive and extensible than a boolean but adding values requires code support. Product names use a direct unique constraint rather than a normalized name column; matching follows the database collation.
+
+## Product operation complexity
+- Get by UUID: O(1) application work; a database primary-key index lookup is typically O(log n).
+- List: O(n) application mapping and O(n) response memory for n products; database reads all matching rows.
+- Create: O(1) application work; uniqueness/index checks are typically O(log n).
+- Update: O(1) application work; indexed lookup, uniqueness check, and update are typically O(log n) database operations.
+These database complexities are typical index behavior, not a guarantee for every database query plan.
+
+INFERENCE: The project initially assumes one currency, likely INR based on existing examples. The Product API therefore has no currency field; revisit if multi-currency support is required.
+
 ## Future / when introduced
 - Caching strategies (if performance needs grow)
 - Pagination and filtering for list endpoints

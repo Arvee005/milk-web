@@ -23,6 +23,12 @@ Authorization
   - POST /api/auth/login and /actuator/health are public
 - Controllers use @PreAuthorize where needed and rely on URL-based restrictions.
 
+Product Management (IMPLEMENTED)
+- OWNER product APIs are under `/api/owner/products` and use the existing `/api/owner/**` ROLE_OWNER restriction.
+- Product controllers return ProductResponse DTOs, not JPA entities.
+- Product request DTOs do not accept IDs or timestamps; create defaults status to ACTIVE, while update can change status.
+- Product data contains no authentication credentials. Customer product browsing is PLANNED / NOT YET IMPLEMENTED and unauthenticated catalog access is not enabled.
+
 Secrets and configuration
 - JWT secret is read from configuration (milkweb.jwt.secret). Defaults should not be committed. For dev, application-dev.properties contains a dev-only secret.
 - Do NOT commit production secrets.
