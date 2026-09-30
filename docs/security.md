@@ -29,6 +29,12 @@ Product Management (IMPLEMENTED)
 - Product request DTOs do not accept IDs or timestamps; create defaults status to ACTIVE, while update can change status.
 - Product data contains no authentication credentials. Customer product browsing is PLANNED / NOT YET IMPLEMENTED and unauthenticated catalog access is not enabled.
 
+Subscription Management (IMPLEMENTED)
+- OWNER subscription endpoints use the existing `/api/owner/**` ROLE_OWNER rule; SecurityConfig was not changed.
+- Unauthenticated requests receive 401; CUSTOMER requests receive 403.
+- Request/response DTOs expose related Customer/Product UUIDs only and do not serialize JPA relationships or authentication data.
+- Customer-facing subscription APIs are PLANNED / NOT YET IMPLEMENTED.
+
 Secrets and configuration
 - JWT secret is read from configuration (milkweb.jwt.secret). Defaults should not be committed. For dev, application-dev.properties contains a dev-only secret.
 - Do NOT commit production secrets.

@@ -2,6 +2,28 @@
 
 This development log is a chronological record of meaningful milestones in the Milk Web project. Each entry is based on Git history and verified repository contents. Facts are drawn from commit metadata and code; where reasons are not recorded, they are marked as INFERENCE.
 
+# Subscription Management (IMPLEMENTED)
+
+## What We Did
+Added OWNER endpoints to create, list/filter, retrieve, and update recurring subscriptions. Subscription stores a default quantity and inclusive effective dates, with lazy references to Customer and Product.
+
+## Business Rules
+- ACTIVE subscriptions for the same Customer/Product cannot have overlapping inclusive date ranges; PAUSED/CANCELLED history does not block a new active period.
+- New ACTIVE subscriptions require an ACTIVE Customer and Product.
+- Customer/Product references are immutable. After a plan starts, quantity and start date cannot be rewritten; shorten the period and create a replacement to change quantity.
+- Product price is not copied. Subscription is a plan, not actual milk supply.
+
+## Data Integrity and Future Work
+- Application-level overlap detection is IMPLEMENTED.
+- **PLANNED / NOT YET IMPLEMENTED:** database-level enforcement against concurrent overlapping PostgreSQL writes. No migration infrastructure or exclusion constraint was added in this module.
+- **PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription API, DailyRecord, Billing, and Payment. Future DailyRecord must snapshot the actual supply price.
+
+## Tests
+Service and controller integration tests cover creation, exact quantities/dates, relationship IDs, filters, validation, eligibility, overlap boundaries, updates, historical preservation, DTO boundaries, and OWNER authorization. Final full-suite results are recorded in `docs/testing.md` after verification.
+
+## Git Commit
+No commit was created as part of this implementation.
+
 # Milestone 1 — Initialize project
 
 ## Date

@@ -43,6 +43,7 @@ How this supports mobile apps
 - Resource-oriented REST endpoints (not coupled to React) are suitable for mobile APIs.
 
 Current vs future
-- The current architecture supports the foundational features (authentication, user, customer). Future modules (products, subscriptions, billing, daily records) will follow the same layered pattern.
+- Implemented backend modules include authentication, users, customers, products, and owner-managed subscriptions, following the layered pattern.
+- Daily records, billing, and payments remain future modules. Subscription supplies a default quantity only; DailyRecord will later capture actual supply.
 
 Read more: docs/decisions/ADR-008-react-vite-frontend.md, docs/decisions/ADR-001-jwt-authentication.md

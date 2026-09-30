@@ -127,6 +127,23 @@ These database complexities are typical index behavior, not a guarantee for ever
 
 INFERENCE: The project initially assumes one currency, likely INR based on existing examples. The Product API therefore has no currency field; revisit if multi-currency support is required.
 
+## Subscription periods, quantities, and overlap checks
+What it is: A Subscription is a customer's recurring default quantity for a Product over an inclusive date range; it is not a record of actual supply.
+Why we use it: DailyRecord will later record what actually happened. Keeping the concepts separate preserves transaction history when a plan changes.
+Milk Web example: Subscription stores Customer, Product, `defaultQuantity`, status, and start/end dates. It does not copy Product name, unit, or price.
+Quantity: `BigDecimal NUMERIC(8,3)` avoids binary floating-point error. Values must be positive and over-precision input is rejected rather than rounded.
+Date semantics: `endDate` is inclusive; null means ongoing. Jan 1–Jan 31 followed by Feb 1 is adjacent and valid, while a second period starting Jan 31 overlaps.
+Status semantics: ACTIVE periods are overlap-checked. PAUSED and CANCELLED rows are retained and do not block a replacement ACTIVE period.
+Editing: after start, quantity and start date are immutable; shorten the old plan and create a new period to change its quantity. Customer and Product are immutable references.
+Concurrency: application checks protect normal requests. **PLANNED / NOT YET IMPLEMENTED:** PostgreSQL database-level enforcement is needed to guarantee against concurrent writers. H2 integration tests do not prove PostgreSQL concurrency behavior.
+Complexity:
+- Create: O(1) application work plus an indexed overlap lookup and insert (typically O(log n) database index work).
+- Get by UUID: O(1) application work; primary-key lookup typically O(log n).
+- List: O(n) mapping and memory for n returned rows; filter indexes reduce the database search set.
+- Overlap check: O(1) application orchestration, with an index-assisted range query over matching customer/product periods.
+- Update: O(1) application work plus primary-key lookup, overlap check when ACTIVE, and index maintenance.
+Historical pricing: Product.price is current catalog price only. **PLANNED / NOT YET IMPLEMENTED:** DailyRecord must snapshot the actual unit price; future billing must not recalculate old records from Product.price.
+
 ## Future / when introduced
 - Caching strategies (if performance needs grow)
 - Pagination and filtering for list endpoints

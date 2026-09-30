@@ -118,6 +118,40 @@ Product names have a database uniqueness constraint. Matching semantics follow t
 
 There is no delete endpoint. Inactive products remain visible to OWNERs. Customer product browsing is **PLANNED / NOT YET IMPLEMENTED** and is not part of this module.
 
+## Subscription Management (IMPLEMENTED)
+
+Subscriptions represent recurring default quantities, not actual supply. All endpoints below require OWNER authorization through the existing `/api/owner/**` rule. Controllers return `SubscriptionResponse` DTOs, never JPA entities.
+
+1) `POST /api/owner/subscriptions`
+- Request DTO: `OwnerCreateSubscriptionRequest` (`customerId`, `productId`, `defaultQuantity`, `startDate`, optional `endDate`)
+- Status defaults to `ACTIVE`.
+- Success: 201 Created with a Location header and `SubscriptionResponse`.
+- Errors: 400 invalid request, 401 unauthenticated, 403 non-OWNER, 404 unknown Customer/Product, 409 inactive Customer/Product or overlapping active period.
+
+2) `GET /api/owner/subscriptions`
+- Returns all subscriptions or filters by optional `customerId`, `productId`, `status`, and `effectiveOn`.
+- `effectiveOn` selects ACTIVE subscriptions whose inclusive date range contains that date.
+- Success: 200 OK with a JSON array.
+- Errors: 400 malformed filter, 401 unauthenticated, 403 non-OWNER.
+
+3) `GET /api/owner/subscriptions/{subscriptionId}`
+- Success: 200 with `SubscriptionResponse`.
+- Errors: 400 malformed UUID, 401 unauthenticated, 403 non-OWNER, 404 unknown subscription.
+
+4) `PUT /api/owner/subscriptions/{subscriptionId}`
+- Request DTO: complete `OwnerUpdateSubscriptionRequest` (`defaultQuantity`, `startDate`, optional `endDate`, `status`). Customer and Product cannot be changed.
+- Future-starting subscriptions may change quantity and dates. Once started, quantity and start date are immutable; end date may only be shortened to today or later. A cancelled subscription cannot be reactivated.
+- Success: 200 with `SubscriptionResponse`.
+- Errors: 400 invalid input, 401 unauthenticated, 403 non-OWNER, 404 unknown subscription, 409 overlap, ineligible Customer/Product, or forbidden historical edit.
+
+Validation: quantity is `BigDecimal`, strictly positive, at most five integral and three fractional digits (`NUMERIC(8,3)`); invalid precision is rejected, never rounded. Start date is required; end date is optional and inclusive, and cannot precede start date. A null end date means ongoing. Invalid enum values, dates, and UUIDs return 400.
+
+Only ACTIVE subscriptions participate in overlap checks. For the same Customer and Product, inclusive date periods may not overlap; PAUSED/CANCELLED rows remain stored and do not block a new ACTIVE period. An ACTIVE subscription requires an ACTIVE Customer and Product. Customer/Product references cannot be changed after creation.
+
+`Subscription.defaultQuantity` is a recurring default only. **PLANNED / NOT YET IMPLEMENTED:** DailyRecord will capture actual supply and snapshot its applied unit price; neither Product price changes nor Subscription edits may recalculate historical DailyRecords or Bills.
+
+**PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription APIs, DailyRecord, Billing, and Payment. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** database-level protection against concurrent overlapping writes for PostgreSQL.
+
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)
 - Domain errors: PhoneAlreadyRegisteredException -> 409; CustomerNotFoundException -> 404

@@ -19,8 +19,8 @@ How to run tests
   cd backend && ./mvnw test
 
 Test status (current)
-- The verified backend suite contains 56 tests.
-- Test result: 56 tests run, 0 failures, 0 errors, and 0 skipped.
+- The verified backend suite contains 79 tests.
+- Test result: 79 tests run, 0 failures, 0 errors, and 0 skipped.
 - The suite was verified with `cd backend && ./mvnw clean test`.
 
 New controller tests added for GET /api/owner/customers:
@@ -75,4 +75,24 @@ Product controller tests cover:
 
 No ProductRepositoryTest was added: the module uses only the derived duplicate-name query plus inherited JpaRepository operations; persistence and constraint behavior are exercised through service/controller integration tests.
 
-Product module verification: 15 Product tests (9 controller, 6 service); full suite total 56 tests, 0 failures, 0 errors, 0 skipped.
+At Product module implementation, verification reported 15 Product tests (9 controller, 6 service); the full suite at that point contained 56 tests.
+
+## Subscription Management tests
+Subscription service tests cover:
+- ACTIVE default, exact `BigDecimal` quantity, Customer/Product references, dates, and timestamps
+- missing/inactive Customer and Product handling
+- exact, partial, containing, open-ended, inclusive-boundary, adjacent, and one-day overlap behavior
+- paused/cancelled history, reactivation overlap/eligibility checks, and update overlap checks
+- filtered lookup by Customer, Product, status, and effective date
+- future edits, started-period restrictions, allowed end-date/status changes, and history preservation
+
+Subscription controller tests cover:
+- OWNER create (201, Location, response DTO fields/default status), list/filter, get, and update
+- required fields, quantity range/scale, dates, enum and UUID binding errors
+- related-entity 404/409 behavior and overlap 409
+- DTO boundary, immutable Customer/Product references, 401 unauthenticated and 403 CUSTOMER access
+
+No SubscriptionRepositoryTest was added; custom overlap/filter query behavior is exercised through service/controller integration tests.
+**PLANNED / NOT YET IMPLEMENTED:** PostgreSQL database-level concurrent-overlap enforcement. H2 tests do not prove concurrent PostgreSQL safety.
+
+Subscription module verification: 23 Subscription tests (9 controller, 14 service); full suite total 79 tests, 0 failures, 0 errors, 0 skipped.

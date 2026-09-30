@@ -54,18 +54,41 @@ Product
   - Zero price is permitted; negative price and values exceeding NUMERIC(12,2) precision/scale are rejected by request validation.
   - Product.price is not a historical transaction price.
 
+Subscription
+- Table: subscriptions
+- Primary key: id (UUID, generated)
+- Fields:
+  - customer_id: required foreign key -> customers.id (`ManyToOne`, LAZY)
+  - product_id: required foreign key -> products.id (`ManyToOne`, LAZY)
+  - default_quantity: required `BigDecimal`, `NUMERIC(8,3)`, strictly positive
+  - status: `SubscriptionStatus` enum (ACTIVE, PAUSED, CANCELLED), persisted as STRING; defaults to ACTIVE
+  - start_date: required `LocalDate`
+  - end_date: nullable inclusive `LocalDate`; null means ongoing
+  - created_at: server-generated `Instant`
+  - updated_at: server-managed `Instant`
+- Constraints and indexes:
+  - Check constraints require positive quantity and `end_date` absent or on/after `start_date`.
+  - Indexes support customer/status/date and product/status/date filtering.
+  - No unique `(customer_id, product_id)` constraint: successive historical periods are valid.
+  - No JPA collections are added to Customer or Product; relationships are owned by Subscription and do not cascade.
+- Business rules:
+  - Application-level checks prevent overlapping ACTIVE periods for the same Customer/Product using inclusive dates.
+  - PAUSED and CANCELLED historical periods do not block a new ACTIVE period.
+  - **PLANNED / NOT YET IMPLEMENTED:** database-level concurrent-write enforcement for PostgreSQL. H2 tests do not establish PostgreSQL race safety.
+  - Subscription stores neither Product name/unit nor price. `default_quantity` is only the recurring default; actual supply and historical price belong to future DailyRecord.
+
 Enums
 - BillingType: PREPAID, MONTHLY
 - CustomerStatus: ACTIVE, PAUSED, INACTIVE
 - ProductUnit: LITRE, KILOGRAM
 - ProductStatus: ACTIVE, INACTIVE
+- SubscriptionStatus: ACTIVE, PAUSED, CANCELLED
 
 Databases
 - Tests / development: H2 (in-memory) — configured in application-dev.properties
 - Production: PostgreSQL (dependency declared in pom.xml)
 
 Planned / Not Yet Implemented Entities (from AGENTS.md / domain model)
-- Subscription
 - DailyRecord
 - Bill
 - Payment
