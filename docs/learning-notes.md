@@ -115,7 +115,7 @@ Trade-offs: Name matching follows the database collation; case-insensitive norma
 What is it: ProductStatus represents whether a product is currently offered; Product.price is the current catalog price.
 Why we use it: INACTIVE products remain available to owners for management without deleting product identity.
 Milk Web example: OWNER can update Product.status as part of the complete PUT request.
-PLANNED / NOT YET IMPLEMENTED: DailyRecord must snapshot unit price at supply time; historical bills must not use a later Product.price.
+IMPLEMENTED: DailyRecord snapshots the owner-provided unit price at supply time; future historical billing must not use a later Product.price.
 Trade-offs: An enum is more descriptive and extensible than a boolean but adding values requires code support. Product names use a direct unique constraint rather than a normalized name column; matching follows the database collation.
 
 ## Product operation complexity
@@ -129,7 +129,7 @@ INFERENCE: The project initially assumes one currency, likely INR based on exist
 
 ## Subscription periods, quantities, and overlap checks
 What it is: A Subscription is a customer's recurring default quantity for a Product over an inclusive date range; it is not a record of actual supply.
-Why we use it: DailyRecord will later record what actually happened. Keeping the concepts separate preserves transaction history when a plan changes.
+Why we use it: DailyRecord records what actually happened. Keeping the concepts separate preserves transaction history when a plan changes.
 Milk Web example: Subscription stores Customer, Product, `defaultQuantity`, status, and start/end dates. It does not copy Product name, unit, or price.
 Quantity: `BigDecimal NUMERIC(8,3)` avoids binary floating-point error. Values must be positive and over-precision input is rejected rather than rounded.
 Date semantics: `endDate` is inclusive; null means ongoing. Jan 1–Jan 31 followed by Feb 1 is adjacent and valid, while a second period starting Jan 31 overlaps.
@@ -142,7 +142,24 @@ Complexity:
 - List: O(n) mapping and memory for n returned rows; filter indexes reduce the database search set.
 - Overlap check: O(1) application orchestration, with an index-assisted range query over matching customer/product periods.
 - Update: O(1) application work plus primary-key lookup, overlap check when ACTIVE, and index maintenance.
-Historical pricing: Product.price is current catalog price only. **PLANNED / NOT YET IMPLEMENTED:** DailyRecord must snapshot the actual unit price; future billing must not recalculate old records from Product.price.
+Historical pricing: Product.price is current catalog price only. DailyRecord stores its actual unit price and amount snapshot; future billing must not recalculate old records from Product.price.
+
+## DailyRecord actual supply, snapshots, and correction rules
+What it is: DailyRecord is the actual customer/product outcome for a calendar date and collection slot; Subscription remains only the recurring default.
+Statuses: COLLECTED and EXTRA require positive quantity and a price snapshot. SKIPPED and PAUSED require zero quantity, null snapshot, and zero amount. No skip reason or delivery concept is modeled.
+Money: quantity (`NUMERIC(8,3)`) multiplied by the owner-provided historical unit price (`NUMERIC(12,2)`) is rounded once with HALF_UP to two places and persisted as amount (`NUMERIC(18,2)`). Reads and future billing use the persisted snapshot/amount, not Product.price.
+History: records may be backfilled with an explicit price, but only today's records can be corrected. Past records are immutable. A chargeable record's snapshot cannot be changed; converting a no-supply record to chargeable requires entering a snapshot.
+Identity: one record per Customer + Product + record date + MORNING/EVENING slot, including EXTRA; additional quantity for the same slot is recorded as one total.
+Associations: Customer and Product are required. Subscription is optional and must match the Customer/Product and inclusive effective dates if supplied; its current status is not required to remain ACTIVE. DailyRecord creation never changes Subscription or Product data.
+Concurrency: a named database unique constraint and application duplicate check protect the event key. H2 verifies functional persistence but does not prove PostgreSQL concurrent-request safety.
+Complexity:
+- Create: O(1) application orchestration plus indexed Customer/Product/Subscription lookups, duplicate lookup, and insert (typically O(log n) index work).
+- Get by UUID: O(1) application work; primary-key lookup typically O(log n).
+- List: O(k) mapping and memory for a page of k results; pagination bounds memory.
+- Filtered date range: O(k) application work; customer/date or product/date indexes support database filtering.
+- Duplicate check: indexed existence check, typically O(log n); the named unique constraint is authoritative.
+- Update: O(1) application work plus indexed record lookup and update, typically O(log n) database index work.
+PLANNED / NOT YET IMPLEMENTED: Bill and Payment will consume DailyRecord amounts; no billing aggregation is implemented here.
 
 ## Future / when introduced
 - Caching strategies (if performance needs grow)

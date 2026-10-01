@@ -19,8 +19,8 @@ How to run tests
   cd backend && ./mvnw test
 
 Test status (current)
-- The verified backend suite contains 79 tests.
-- Test result: 79 tests run, 0 failures, 0 errors, and 0 skipped.
+- The verified backend suite contains 104 tests.
+- Test result: 104 tests run, 0 failures, 0 errors, and 0 skipped.
 - The suite was verified with `cd backend && ./mvnw clean test`.
 
 New controller tests added for GET /api/owner/customers:
@@ -96,3 +96,21 @@ No SubscriptionRepositoryTest was added; custom overlap/filter query behavior is
 **PLANNED / NOT YET IMPLEMENTED:** PostgreSQL database-level concurrent-overlap enforcement. H2 tests do not prove concurrent PostgreSQL safety.
 
 Subscription module verification: 23 Subscription tests (9 controller, 14 service); full suite total 79 tests, 0 failures, 0 errors, 0 skipped.
+
+## DailyRecord Management tests
+DailyRecord service tests cover:
+- COLLECTED, EXTRA, SKIPPED, and PAUSED records with exact quantities, relationships, timestamps, prices, and amounts
+- HALF_UP amount rounding, status/quantity/price consistency, and precision/range validation
+- past-date backfill with explicit price, Product price changes preserving existing snapshots, and same-day-only updates
+- optional Subscription association, Customer/Product/date matching, inclusive boundaries, ongoing periods, and paused/cancelled historical subscriptions
+- ACTIVE customer/product eligibility for supplied quantity, unknown related entities, duplicate event rejection for every status
+- quantity corrections, immutable price snapshots, no-supply-to-supply transitions, filters, and pagination
+
+DailyRecord controller tests cover:
+- OWNER create (201, Location, response DTO and server-calculated amount), list/filter/page ordering, get, and update
+- request validation, malformed query/path values, date-range rules, duplicate and eligibility conflicts, unknown related records
+- 401 unauthenticated and 403 CUSTOMER behavior for all owner routes
+- client-controlled ID/amount/timestamp exclusion and response DTO boundaries
+
+DailyRecord verification: 25 tests (11 controller, 14 service); full suite total 104 tests, 0 failures, 0 errors, 0 skipped.
+H2 validates the named uniqueness constraint and application behavior, but does not establish PostgreSQL concurrent-write safety.

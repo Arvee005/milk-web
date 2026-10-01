@@ -2,6 +2,29 @@
 
 This development log is a chronological record of meaningful milestones in the Milk Web project. Each entry is based on Git history and verified repository contents. Facts are drawn from commit metadata and code; where reasons are not recorded, they are marked as INFERENCE.
 
+# DailyRecord Management (IMPLEMENTED)
+
+## What We Did
+Added OWNER endpoints to create, filter/list with pagination, retrieve, and same-day-correct actual customer/product collection outcomes.
+
+## Business and Data Rules
+- DailyRecord represents actual supply/outcome and remains separate from Subscription's recurring default.
+- COLLECTED/EXTRA store positive quantity and an owner-supplied historical unit price snapshot. SKIPPED/PAUSED store zero quantity/amount and no price.
+- Amount is calculated server-side from the snapshot, rounded HALF_UP to two decimal places, and persisted.
+- Customer, Product, Subscription, date, and slot associations are fixed after creation. Past records cannot be updated.
+- An optional Subscription must match Customer/Product and date range; current Subscription status is not used to invalidate historical association.
+- One row per customer/product/date/slot is enforced by application check and named database unique constraint.
+
+## Future Work
+- **PLANNED / NOT YET IMPLEMENTED:** Bill, Payment, and billing aggregation; future billing must use stored DailyRecord amounts.
+- H2 tests validate functional behavior but do not prove concurrent PostgreSQL write safety.
+
+## Tests
+DailyRecord service/controller integration tests cover status/quantity rules, snapshots and rounding, eligibility, subscription relationships, duplicate prevention, pagination/filters, same-day correction, historical immutability, DTO boundaries, and OWNER authorization. Final suite totals are recorded in `docs/testing.md`.
+
+## Git Commit
+No commit was created as part of this implementation.
+
 # Subscription Management (IMPLEMENTED)
 
 ## What We Did
@@ -16,7 +39,7 @@ Added OWNER endpoints to create, list/filter, retrieve, and update recurring sub
 ## Data Integrity and Future Work
 - Application-level overlap detection is IMPLEMENTED.
 - **PLANNED / NOT YET IMPLEMENTED:** database-level enforcement against concurrent overlapping PostgreSQL writes. No migration infrastructure or exclusion constraint was added in this module.
-- **PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription API, DailyRecord, Billing, and Payment. Future DailyRecord must snapshot the actual supply price.
+- **PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription API, Billing, and Payment. DailyRecord is implemented separately and snapshots the actual supply price.
 
 ## Tests
 Service and controller integration tests cover creation, exact quantities/dates, relationship IDs, filters, validation, eligibility, overlap boundaries, updates, historical preservation, DTO boundaries, and OWNER authorization. Final full-suite results are recorded in `docs/testing.md` after verification.

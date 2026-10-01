@@ -35,6 +35,12 @@ Subscription Management (IMPLEMENTED)
 - Request/response DTOs expose related Customer/Product UUIDs only and do not serialize JPA relationships or authentication data.
 - Customer-facing subscription APIs are PLANNED / NOT YET IMPLEMENTED.
 
+DailyRecord Management (IMPLEMENTED)
+- OWNER DailyRecord APIs use the existing `/api/owner/**` ROLE_OWNER rule; SecurityConfig was not modified.
+- Unauthenticated requests receive 401; CUSTOMER requests receive 403.
+- DTOs expose related resource IDs and recorded values only; they do not expose nested entities or authentication information.
+- Customer-facing DailyRecord APIs are PLANNED / NOT YET IMPLEMENTED.
+
 Secrets and configuration
 - JWT secret is read from configuration (milkweb.jwt.secret). Defaults should not be committed. For dev, application-dev.properties contains a dev-only secret.
 - Do NOT commit production secrets.

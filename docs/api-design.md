@@ -148,9 +148,43 @@ Validation: quantity is `BigDecimal`, strictly positive, at most five integral a
 
 Only ACTIVE subscriptions participate in overlap checks. For the same Customer and Product, inclusive date periods may not overlap; PAUSED/CANCELLED rows remain stored and do not block a new ACTIVE period. An ACTIVE subscription requires an ACTIVE Customer and Product. Customer/Product references cannot be changed after creation.
 
-`Subscription.defaultQuantity` is a recurring default only. **PLANNED / NOT YET IMPLEMENTED:** DailyRecord will capture actual supply and snapshot its applied unit price; neither Product price changes nor Subscription edits may recalculate historical DailyRecords or Bills.
+`Subscription.defaultQuantity` is a recurring default only. Implemented DailyRecord entries capture actual supply and snapshot their applied unit price; neither Product price changes nor Subscription edits may recalculate historical DailyRecords or Bills.
 
-**PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription APIs, DailyRecord, Billing, and Payment. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** database-level protection against concurrent overlapping writes for PostgreSQL.
+**PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription APIs, Billing, and Payment. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** database-level protection against concurrent overlapping writes for PostgreSQL.
+
+## DailyRecord Management (IMPLEMENTED)
+
+DailyRecord records the actual product outcome for one customer, product, calendar date, and collection slot. It is distinct from Subscription, which stores the recurring default plan. Customers collect at the farm; these APIs do not model delivery. Creating or updating a DailyRecord does not mutate Subscription defaults/status or Product catalog price.
+
+All endpoints are OWNER-only under `/api/owner/**`. Successful responses use `DailyRecordResponse`, never JPA entities.
+
+1) `POST /api/owner/daily-records`
+- Request DTO: `OwnerCreateDailyRecordRequest` (`customerId`, `productId`, optional `subscriptionId`, `recordDate`, `slot`, `quantity`, `unitPriceSnapshot`, `status`)
+- Chargeable statuses COLLECTED/EXTRA require positive quantity and owner-supplied unit price snapshot. SKIPPED/PAUSED require zero quantity and null price. Amount is server-calculated.
+- Supports today and past dates; past records require their historical price snapshot.
+- Success: 201 Created with Location header.
+- Errors: 400 invalid input; 401 unauthenticated; 403 non-OWNER; 404 unknown Customer/Product/Subscription; 409 duplicate, ineligible entity, or invalid Subscription association.
+
+2) `GET /api/owner/daily-records`
+- Optional filters: `customerId`, `productId`, `recordDate` or inclusive `fromDate`/`toDate`, `slot`, `status`.
+- Supports `page` (default 0) and `size` (default 50, maximum 100); default order is recordDate DESC, slot ASC, id ASC.
+- `recordDate` cannot be combined with range filters; fromDate cannot be after toDate.
+- Success: 200 with a paged `DailyRecordResponse` result.
+
+3) `GET /api/owner/daily-records/{dailyRecordId}`
+- Success: 200 response DTO; malformed UUID 400; unknown record 404.
+
+4) `PUT /api/owner/daily-records/{dailyRecordId}`
+- Request DTO accepts only `quantity`, `status`, and optional `unitPriceSnapshot`.
+- Only records dated today may be corrected. Past records return 409. Identity references, date, slot, and existing price snapshots cannot be changed.
+- A no-supply record may become chargeable only with a new snapshot; a chargeable record changing to no-supply clears price and amount.
+- Success: 200; invalid correction 400/409; missing record 404.
+
+DailyRecord statuses are exactly COLLECTED, SKIPPED, PAUSED, and EXTRA. Quantity uses `BigDecimal NUMERIC(8,3)`; snapshots use `NUMERIC(12,2)`. Chargeable amount is calculated from quantity × snapshot and rounded once to 2 decimals using HALF_UP, then stored as `NUMERIC(18,2)`. Product.price is not consulted after creation.
+
+One row is allowed per `(customer_id, product_id, record_date, slot)` across all statuses. A supplied Subscription must match Customer/Product and include the record date, but need not currently be ACTIVE. No Subscription is required or inferred. Positive supply requires currently ACTIVE Customer and Product.
+
+**PLANNED / NOT YET IMPLEMENTED:** Bill/Payment and billing-period aggregation. Future Bills must use stored DailyRecord amounts/snapshots, never current Product.price. Database uniqueness protects the duplicate invariant; H2 tests do not prove PostgreSQL concurrency behavior.
 
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)

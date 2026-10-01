@@ -75,7 +75,34 @@ Subscription
   - Application-level checks prevent overlapping ACTIVE periods for the same Customer/Product using inclusive dates.
   - PAUSED and CANCELLED historical periods do not block a new ACTIVE period.
   - **PLANNED / NOT YET IMPLEMENTED:** database-level concurrent-write enforcement for PostgreSQL. H2 tests do not establish PostgreSQL race safety.
-  - Subscription stores neither Product name/unit nor price. `default_quantity` is only the recurring default; actual supply and historical price belong to future DailyRecord.
+  - Subscription stores neither Product name/unit nor price. `default_quantity` is only the recurring default; actual supply and historical price belong to DailyRecord.
+
+DailyRecord
+- Table: daily_records
+- Primary key: id (UUID, generated)
+- Fields:
+  - customer_id: required FK -> customers.id (`ManyToOne`, LAZY)
+  - product_id: required FK -> products.id (`ManyToOne`, LAZY)
+  - subscription_id: optional FK -> subscriptions.id (`ManyToOne`, LAZY)
+  - record_date: required `LocalDate`
+  - slot: required `DailyRecordSlot` (MORNING, EVENING), persisted as STRING
+  - quantity: required `BigDecimal NUMERIC(8,3)`
+  - unit_price_snapshot: nullable `BigDecimal NUMERIC(12,2)`; required for COLLECTED/EXTRA
+  - amount: required server-calculated `BigDecimal NUMERIC(18,2)`
+  - status: required `DailyRecordStatus` (COLLECTED, SKIPPED, PAUSED, EXTRA), persisted as STRING
+  - created_at / updated_at: required server-managed `Instant`
+- Constraints and indexes:
+  - Unique constraint `uk_daily_records_customer_product_date_slot` across customer_id, product_id, record_date, slot.
+  - Check constraints require nonnegative quantity/amount/price and consistent status, quantity, snapshot, and amount values.
+  - Customer/date and product/date indexes support history and billing-period queries.
+  - No relationship cascades and no inverse collections on Customer, Product, or Subscription.
+- Business rules:
+  - DailyRecord is actual per-date/slot outcome, not Subscription's recurring default.
+  - SKIPPED/PAUSED have zero quantity/amount and no price snapshot; COLLECTED/EXTRA have positive quantity and a price snapshot.
+  - Amount is calculated with `BigDecimal`, rounded HALF_UP once to scale 2, and persisted. Product.price changes do not alter historical values.
+  - A Subscription link is optional and is validated for matching Customer/Product/date range, without requiring its current status to be ACTIVE.
+  - Past records can be created with an explicit historical snapshot but cannot be updated. Only today's records permit correction.
+  - Duplicate checks run in the service and the database unique constraint remains authoritative. H2 does not prove PostgreSQL concurrent-write safety.
 
 Enums
 - BillingType: PREPAID, MONTHLY
@@ -83,27 +110,30 @@ Enums
 - ProductUnit: LITRE, KILOGRAM
 - ProductStatus: ACTIVE, INACTIVE
 - SubscriptionStatus: ACTIVE, PAUSED, CANCELLED
+- DailyRecordSlot: MORNING, EVENING
+- DailyRecordStatus: COLLECTED, SKIPPED, PAUSED, EXTRA
 
 Databases
 - Tests / development: H2 (in-memory) — configured in application-dev.properties
 - Production: PostgreSQL (dependency declared in pom.xml)
 
 Planned / Not Yet Implemented Entities (from AGENTS.md / domain model)
-- DailyRecord
 - Bill
 - Payment
 - BalanceAdjustment
 
 These are described in AGENTS.md and will be implemented later. They are explicitly NOT yet present in the schema and are listed here so future migrations and design can reference them.
 
-Important business/data-design rule (planned)
-- DailyRecord must snapshot unit_price at the time of transaction; historical bills must not re-calc using current Product.price. This rule is recorded in AGENTS.md and must be followed when implementing daily records and billing. **PLANNED / NOT YET IMPLEMENTED.**
+Important business/data-design rule
+- **IMPLEMENTED:** DailyRecord snapshots unit_price at the time of the recorded supply and stores its calculated amount. Future Bills must not recalculate historical records from current Product.price.
+- **PLANNED / NOT YET IMPLEMENTED:** Bill, Payment, and billing-period aggregation.
 
 Product price/currency note
 - **INFERENCE:** The initial business is assumed to use one currency (likely INR based on project examples). No currency field or currency configuration is implemented. Revisit before supporting multiple currencies.
 
 Indexes and performance
-- Current model includes unique indexes (phone, user_id). Additional indexes (customer, product, date) should be added when queries require them (AGENTS.md guidance).
+- Current model includes unique indexes/constraints for user phone, customer user_id, product name, and DailyRecord customer/product/date/slot.
+- DailyRecord also has customer/date and product/date indexes for history queries. Add further indexes only when query patterns and plans justify them.
 
 Foreign keys and transactional integrity
 - Services should use transactions to maintain referential integrity (e.g., creating User + Customer atomically).
