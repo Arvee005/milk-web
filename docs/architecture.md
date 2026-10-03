@@ -56,7 +56,8 @@ How this supports mobile apps
 Current vs future
 - Implemented backend modules include authentication, users, customers, products, owner-managed subscriptions, owner-managed DailyRecords, BillingPeriod reconciliation/closing, and Bill generation/issuance. Customer-scoped read APIs also expose profile, records, subscriptions, and ISSUED bills.
 - Subscription supplies a recurring default; DailyRecord records the actual outcome for a customer/product/date/collection slot. A closed BillingPeriod prevents later DailyRecord writes and provides an informational reconciliation summary. Bill generation snapshots stored chargeable records into a DRAFT; a separate owner action issues the Bill. There is no payment ledger, allocation, adjustment, currency snapshot, or reliable balance.
-- Implemented frontend workspaces include owner billing and customer profile, Overview/Records, subscriptions, and issued bills. Customer payment and balance views remain unimplemented.
+- Implemented frontend workspaces include owner billing, owner DailyRecord entry/review, and customer profile, Overview/Records, subscriptions, and issued bills. Customer payment and balance views remain unimplemented.
+- The owner workspace is a single React page with two sections (Billing, Daily records) selected by local state; there is no client-side router or state-management library. The DailyRecord entry form submits intent only: quantity/price/status rules, amount calculation, price-snapshot immutability, and BillingPeriod state are all enforced by the backend. Customer and Product display labels are resolved in the browser from the existing OWNER reference lists because `DailyRecordResponse` deliberately exposes only identifiers.
 
 ## Financial Domain Direction (PROPOSED; DOCUMENTATION ONLY)
 

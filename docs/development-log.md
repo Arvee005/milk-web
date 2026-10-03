@@ -2,6 +2,51 @@
 
 This development log is a chronological record of meaningful milestones in the Milk Web project. Each entry is based on Git history and verified repository contents. Facts are drawn from commit metadata and code; where reasons are not recorded, they are marked as INFERENCE.
 
+# Owner DailyRecord Entry and Review (IMPLEMENTED)
+
+## What We Did
+IMPLEMENTED: Replaced the disabled Owner "Daily records" navigation placeholder in `frontend/src/App.tsx` with a working entry and review workspace (`frontend/src/OwnerDailyRecords.tsx`) backed by a dedicated API client (`frontend/src/ownerDailyRecordsApi.ts`). The owner can select a customer, product, date, MORNING/EVENING slot, status, and actual quantity, then save; the review list shows the same records with filters and pagination.
+
+No backend code changed. The workspace reuses the existing OWNER DailyRecord endpoints (`POST`/`GET`/`PUT /api/owner/daily-records`), `GET /api/owner/customers`, and `GET /api/owner/products`. INFERENCE: no backend gap was found, so adding a new endpoint would have duplicated existing authority.
+
+## Design Decisions
+- IMPLEMENTED: the Owner workspace has two sections (Billing, Daily records) selected by local component state. No router, state library, or UI framework was introduced; this matches the existing single-page owner workspace and customer shell.
+- IMPLEMENTED: Customer and Product names are resolved client-side from the two reference lists the owner already loads. `DailyRecordResponse` intentionally exposes only `customerId`/`productId`, so no new join or denormalized response field was added to the API.
+- IMPLEMENTED: the unit-price snapshot is prefilled from the current `Product.price` but remains an owner-editable, explicitly submitted value. The backend remains authoritative; the frontend never calculates `amount` and never derives price from Subscription defaults.
+- IMPLEMENTED: browser-side checks mirror only the shape the server enforces (required selections, past-or-present date, positive quantity for COLLECTED/EXTRA, zero quantity and no price for SKIPPED/PAUSED). They are usability guards, not a second rule engine.
+- IMPLEMENTED: correction reuses `PUT` and is offered only for today's records, matching the existing "past daily records cannot be updated" server rule. Past records are listed as read-only.
+- IMPLEMENTED: 401 clears the session through the existing callback; 403 is shown as a permission error and does not expire the session.
+- IMPLEMENTED: business dates are derived from `Asia/Kolkata` in the browser, consistent with the injected business `Clock` used by the backend. INFERENCE: the browser zone is only a display/default guard; the server still evaluates `@PastOrPresent` and the business clock.
+
+## Trade-offs
+- The review list is date-anchored rather than a range, which keeps the common "what happened today/yesterday" case to one click but does not yet offer a multi-day range control. The endpoint already supports `fromDate`/`toDate` if that is added later.
+- The entry form disables quantity and price for SKIPPED/PAUSED instead of hiding them, so the operator always sees all six required concepts in one place.
+- A record card shows labels rather than a dense table so the workflow stays usable on small screens with the existing CSS tokens.
+
+## Security implications
+- No new route, DTO, or authorization rule was added. The workspace calls only OWNER endpoints, and `SecurityConfig` still enforces `/api/owner/**` as ROLE_OWNER. Nothing here is an authorization control; it is a UI boundary only.
+
+## Tests
+- `frontend/src/ownerDailyRecordsApi.test.ts` (5 tests): owner customer/product loading, only-active-filter query construction with page/size, create payload shape, update payload limited to quantity/status/price, and rejection of malformed payloads plus 401/403/409 handling.
+- `frontend/src/ownerDailyRecords.component.test.tsx` (11 tests): customer/product loading state, chargeable creation with selected date/slot/quantity/price, quantity validation with no request sent, zero-quantity SKIPPED creation, empty state, rejected creation preserving input, rejected correction, reference-loading failure with retry, filter application, 403 visibility with 401 session expiry, and same-day correction preserving the original price snapshot.
+- No backend test was added: no backend behavior changed.
+- Verification: `./mvnw test` = 138 tests, 0 failures, 0 errors, 0 skipped. `npm test` = 39 API tests + 17 component tests, 0 failures. `npx tsc -b`, `npm run build`, and `npm run lint` passed. `git diff --check` passed.
+
+## Problems Encountered
+- The first version nested a help span inside the price `<label>`, which polluted the control's accessible name (and broke label-based queries). The hint was moved to a sibling element referenced by `aria-describedby`.
+- Record cards originally used `<div>`/`<article>`, so status labels such as "Skipped" were ambiguous with the identical `<option>` text in the status filter. The review list is now a labelled `<ul>`, which scopes both assistive-technology navigation and test queries.
+- `ownerDailyRecordsApi.ts` initially imported `./authApi` without the file extension, which does not resolve under the repo's `node --experimental-strip-types` API-test runner. It now matches the other clients' `./authApi.ts` form.
+
+## Lessons Learned
+- Keeping business rules server-side made this slice a client-only change: the form submits intent, and the server decides validity, amount, snapshot, and period state.
+- Accessible naming is a correctness concern in tests, not only a compliance concern; label text and list semantics are part of the component contract.
+
+## Interview Takeaway
+The Owner entry and review workflow was delivered as a pure frontend slice because the DailyRecord API already modeled actual supply correctly: identity, slot, status, price snapshot, and amount are all server-owned, and the UI only collects intent and renders stored values.
+
+## Git Commit
+Not yet committed; commit hash will be recorded after a commit exists.
+
 # Production Database and Migration Strategy (DOCUMENTATION ONLY)
 
 ## Verified repository state

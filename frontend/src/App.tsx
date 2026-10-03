@@ -11,6 +11,7 @@ import {
   workspaceForRole,
 } from './authApi'
 import CustomerWorkspace from './CustomerWorkspace'
+import OwnerDailyRecords from './OwnerDailyRecords'
 import './App.css'
 
 type Customer = {
@@ -66,6 +67,7 @@ type Page<T> = {
 }
 
 const PAGE_SIZE = 10
+type OwnerSection = 'billing' | 'daily-records'
 
 type Session =
   | { status: 'checking'; token: string; user: null }
@@ -118,6 +120,7 @@ function formatMonth(period: string) {
 
 function App() {
   const [session, setSession] = useState<Session>(initialSession)
+  const [ownerSection, setOwnerSection] = useState<OwnerSection>('billing')
   const token = session.token
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -148,6 +151,7 @@ function App() {
     setSelectedBill(null)
     setBusyAction('')
     setNotice('')
+    setOwnerSection('billing')
   }, [])
 
   const reportRequestError = useCallback((cause: unknown, fallback: string) => {
@@ -214,7 +218,7 @@ function App() {
   }, [session.token, session.status])
 
   useEffect(() => {
-    if (session.status !== 'authenticated' || session.user.role !== 'OWNER') return
+    if (session.status !== 'authenticated' || session.user.role !== 'OWNER' || ownerSection !== 'billing') return
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodId)) {
       setPeriod(null)
       setBills(null)
@@ -222,7 +226,7 @@ function App() {
       return
     }
     void loadWorkspace(session.token, periodId, page)
-  }, [session.status, session.token, session.user?.role, periodId, page, loadWorkspace])
+  }, [session.status, session.token, session.user?.role, ownerSection, periodId, page, loadWorkspace])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -374,6 +378,17 @@ function App() {
     )
   }
 
+  if (ownerSection === 'daily-records') {
+    return (
+      <OwnerDailyRecords
+        token={session.token}
+        onSignOut={signOut}
+        onSessionExpired={expireSession}
+        onShowBilling={() => setOwnerSection('billing')}
+      />
+    )
+  }
+
   const monthlyCustomers = customers.filter((customer) => customer.billingType === 'MONTHLY')
   const selectedCustomer = monthlyCustomers.find((customer) => customer.id === customerId)
   const canClose = Boolean(period && period.status === 'OPEN' && period.period < previousMonthInIndia())
@@ -386,8 +401,12 @@ function App() {
         </a>
         <div className="workspace-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
-          <a href="#billing" className="nav-item active"><span className="nav-icon">▤</span> Billing</a>
-          <span className="nav-item disabled"><span className="nav-icon">◷</span> Daily records</span>
+          <button type="button" className="nav-item owner-nav-item active" aria-current="page" onClick={() => setOwnerSection('billing')}><span className="nav-icon" aria-hidden="true">▤</span> Billing</button>
+          <button type="button" className="nav-item owner-nav-item" onClick={() => {
+            workspaceRequestId.current += 1
+            setLoading(false)
+            setOwnerSection('daily-records')
+          }}><span className="nav-icon" aria-hidden="true">◷</span> Daily records</button>
           <span className="nav-item disabled"><span className="nav-icon">♧</span> Customers</span>
         </nav>
         <div className="sidebar-bottom">

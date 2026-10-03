@@ -15,7 +15,7 @@ Adopt Flyway with reviewed, PostgreSQL-specific SQL migrations as the sole produ
 
 Use Hibernate `validate` in application environments that use the managed schema. Hibernate must not create, update, or drop production schema. Keep H2 `create-drop` only for fast isolated tests that intentionally test application logic, and add PostgreSQL-backed migration/schema/concurrency verification before relying on PostgreSQL.
 
-Before implementation: inspect all existing target databases; resolve the initial baseline; review and checkpoint the combined uncommitted product work; choose credentials/hosting/backup operations; and get owner approvals for any financial policies that affect schema.
+Before implementation: inspect all existing target databases; resolve the initial baseline; review and checkpoint the currently uncommitted owner DailyRecord frontend work; choose credentials/hosting/backup operations; and get owner approvals for any financial policies that affect schema.
 
 ## 1. Current repository database architecture
 
@@ -242,7 +242,7 @@ No migration, baseline, restore, or PostgreSQL validation was run for this plann
 
 ## 10. Prerequisites and recommended next milestone
 
-1. Review and checkpoint the existing combined uncommitted work (customer records, subscriptions, bills, tests, and prior documentation) before introducing an unrelated migration foundation. The current worktree is dirty; this task intentionally did not commit, discard, or checkpoint it.
+1. Review and checkpoint the uncommitted Owner DailyRecord entry/review work in the worktree (frontend-only slice; no schema, migration, or backend change) before introducing an unrelated migration foundation. Earlier milestones through commit `e45cfd0` ("feat: add customer dashboard and domain planning") are already committed. This task intentionally did not commit, discard, or checkpoint the new work.
 2. Authorize a read-only inventory of any real PostgreSQL instances and identify their owners, backups, current schema version, and data sensitivity. Do not assume empty.
 3. Resolve existing schema drift and the User phone-width documentation mismatch; choose canonical V1 DDL and whether application-enforced overlap/period/arithmetic rules need DB-level constraints.
 4. Confirm Flyway/version/module compatibility with Spring Boot 4.1 and choose the production PostgreSQL provider, explicit profiles, secrets, pool settings, and backup/restore operations.

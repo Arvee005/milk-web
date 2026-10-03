@@ -49,7 +49,7 @@ Can make a one-time change quickly but does not reliably record ordering, checks
 - Inspect every target database read-only before choosing or applying a baseline.
 - Confirm actual PostgreSQL DDL, data quality, drift, extensions, and ownership; no production database is presumed empty.
 - Reconcile the entity/database documentation mismatch for `users.phone` (JPA width 15; API validation currently expects ten digits) and decide canonical V1 constraints.
-- Review/checkpoint the combined uncommitted application and documentation work before implementing migration infrastructure. Current worktree is dirty; no commit was made for this planning phase.
+- Review/checkpoint the uncommitted Owner DailyRecord entry/review work before implementing migration infrastructure. That slice is frontend-only and makes no schema change, but it is still uncommitted; everything through `e45cfd0` ("feat: add customer dashboard and domain planning") is committed.
 - Confirm hosting, credentials/secrets, backup/restore responsibilities, explicit profile behavior, pool sizing, and financial policy before financial schema work.
 
 ## Follow-up

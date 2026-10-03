@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --experimental-strip-types --test src/authApi.test.ts src/customerApi.test.ts src/dailyRecordsApi.test.ts src/subscriptionsApi.test.ts src/billsApi.test.ts && TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx --test src/customerBills.component.test.tsx",
+    "test": "node --experimental-strip-types --test src/authApi.test.ts src/customerApi.test.ts src/dailyRecordsApi.test.ts src/subscriptionsApi.test.ts src/billsApi.test.ts src/ownerDailyRecordsApi.test.ts && TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx --test src/customerBills.component.test.tsx src/ownerDailyRecords.component.test.tsx",
     "preview": "vite preview"
   },
   "dependencies": {

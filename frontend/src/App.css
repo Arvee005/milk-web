@@ -207,6 +207,36 @@ td { height: 58px; border-top: 1px solid #eff2ee; color: #617168; font-size: 10p
 .customer-bill-line > div:first-child span { color: #87948b; font-size: 10px; }
 .customer-bill-line dl { display: flex; align-items: flex-start; gap: 20px; margin: 0; }
 .customer-bill-line dd { white-space: nowrap; }
+.owner-nav-item { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.owner-nav-item:focus-visible { outline: 3px solid #77a889; outline-offset: 2px; }
+.owner-daily-records { max-width: 1320px; }
+.daily-entry-card { padding: 22px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 3px 10px rgba(38,70,50,.025); }
+.daily-entry-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.daily-entry-form > label, .daily-entry-form .daily-field > label, .daily-record-filters > label { display: grid; gap: 7px; color: #5b6c61; font-size: 11px; font-weight: 700; }
+.daily-field { display: grid; gap: 7px; min-width: 0; }
+.daily-entry-form input, .daily-entry-form select, .daily-record-filters input, .daily-record-filters select { width: 100%; min-width: 0; min-height: 42px; border: 1px solid #dfe6df; border-radius: 8px; padding: 0 11px; background: #fff; color: var(--ink); font: 500 13px 'DM Sans', sans-serif; }
+.daily-entry-form input:disabled { background: #f4f6f3; color: #7d8981; }
+.daily-slot-choice { display: flex; align-items: stretch; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.daily-slot-choice legend { margin-bottom: 7px; color: #5b6c61; font-size: 11px; font-weight: 700; }
+.daily-slot-choice label { display: flex; min-height: 42px; flex: 1; align-items: center; justify-content: center; gap: 7px; border: 1px solid #dfe6df; border-radius: 8px; color: #65746a; font-size: 12px; cursor: pointer; }
+.daily-slot-choice label.selected { border-color: #78a889; background: #edf5ef; color: var(--deep-green); font-weight: 700; }
+.daily-slot-choice input { width: auto; min-height: 0; accent-color: var(--green); }
+.daily-entry-form .form-hint { color: #8a978e; font-size: 10px; font-weight: 400; line-height: 1.5; }
+.daily-entry-submit { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.daily-entry-submit .alert { margin: 0; }
+.daily-entry-card > .customer-readonly-note { margin-bottom: 0; }
+.daily-review { margin-top: 30px; }
+.daily-record-filters { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 12px; margin: 0 0 14px; padding: 17px; background: #fff; border: 1px solid var(--line); border-radius: 11px; }
+.daily-record-filters .secondary-button { white-space: nowrap; }
+.owner-record-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.owner-record-card { padding: 16px 19px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.owner-record-primary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.owner-record-primary h3 { margin: 0 0 4px; font-size: 14px; }
+.owner-record-primary p { margin: 0; color: #819087; font-size: 11px; }
+.owner-record-values { display: flex; flex-wrap: wrap; gap: 20px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid #eff2ee; }
+.owner-record-values dt { margin-bottom: 4px; color: #96a198; font-size: 9px; }
+.owner-record-values dd { margin: 0; color: #53665a; font-size: 12px; font-weight: 600; }
+.owner-record-edit { margin-top: 8px; }
 .today-collections, .records-history { max-width: 1080px; }
 .today-date { margin-left: 8px; color: var(--muted); font: 500 11px 'DM Sans', sans-serif; letter-spacing: 0; }
 .today-slot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -282,8 +312,23 @@ td { height: 58px; border-top: 1px solid #eff2ee; color: #617168; font-size: 10p
   .customer-shell .sidebar-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 5px; }
   .customer-shell .secure-note { font-size: 10px; padding: 5px 0; border: 0; }
   .customer-shell .signout-button { font-size: 11px; padding: 7px; }
+  .owner-daily-shell { display: block; }
+  .owner-daily-shell .sidebar { width: 100%; flex-basis: auto; padding: 12px 14px 8px; align-items: stretch; }
+  .owner-daily-shell .brand { padding: 0 2px; }
+  .owner-daily-shell .brand > span:not(.brand-mark), .owner-daily-shell .workspace-label { display: block; font-size: 12px; }
+  .owner-daily-shell .workspace-label { margin: 12px 0 4px; }
+  .owner-daily-shell .sidebar nav { display: flex; gap: 4px; margin-top: 0; overflow-x: auto; padding: 2px 0 5px; }
+  .owner-daily-shell .nav-item, .owner-daily-shell .nav-item.active { width: auto; min-width: max-content; height: 38px; justify-content: center; padding: 0 10px; font-size: 11px; }
+  .owner-daily-shell .nav-icon { font-size: 15px; }
+  .owner-daily-shell .sidebar-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 5px; }
+  .owner-daily-shell .secure-note { font-size: 10px; padding: 5px 0; border: 0; }
+  .owner-daily-shell .signout-button { font-size: 11px; padding: 7px; }
   .customer-profile-card { padding: 18px; }
   .customer-placeholder { min-height: 230px; padding: 22px; }
+  .daily-entry-card { padding: 16px; }
+  .daily-entry-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+  .daily-record-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 13px; }
+  .owner-record-card { padding: 14px; }
   .customer-profile-grid { gap: 18px; }
   .today-slot-grid, .records-list, .customer-subscription-list { grid-template-columns: 1fr; }
   .customer-bill-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -300,4 +345,6 @@ td { height: 58px; border-top: 1px solid #eff2ee; color: #617168; font-size: 10p
   .customer-status { margin-left: 66px; }
   .customer-profile-grid { grid-template-columns: 1fr; gap: 16px; }
   .customer-subscription-heading { flex-wrap: wrap; }
+  .daily-entry-form, .daily-record-filters { grid-template-columns: 1fr; }
+  .owner-record-values { gap: 13px; }
 }

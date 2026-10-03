@@ -71,6 +71,13 @@ DailyRecord Management (IMPLEMENTED)
 - The customer response DTO contains only record ID/date/slot, product name/unit, quantities, historical price snapshot, amount, and status. Pagination is capped at 100; date ranges require both endpoints and are capped at 366 calendar dates.
 - Owner daily-record create/list/detail/update endpoints remain unchanged and OWNER-only.
 
+Owner DailyRecord workspace (IMPLEMENTED)
+- The Owner "Daily records" section calls only existing `/api/owner/**` endpoints. `SecurityConfig` was not changed and no new authorization rule was introduced; the frontend section is a usability boundary, not an access control.
+- A 401 from any owner request clears the stored session and returns to sign-in through the existing session-expired callback. A 403 is displayed as a permission error and does not expire the authenticated identity.
+- The workspace requests `/api/owner/customers` and `/api/owner/products` to render labels. It receives only existing `CustomerResponse`/`ProductResponse` DTO fields; no additional customer or product data is exposed to the browser.
+- The unit-price snapshot is prefilled from the current catalog price as a convenience, but the value stored is the owner-submitted one. The client never computes an amount and never treats the prefilled value as authoritative.
+- No token is written to storage by this workspace; it uses the same tab-scoped `sessionStorage` lifecycle as the owner billing workspace and shares the single sign-out control.
+
 Billing and Period Management (IMPLEMENTED)
 - Owner period inspection and close endpoints use the existing `/api/owner/**` ROLE_OWNER rule; SecurityConfig was not modified.
 - Unauthenticated requests receive 401; CUSTOMER requests receive 403.

@@ -229,6 +229,17 @@ DailyRecord statuses are exactly COLLECTED, SKIPPED, PAUSED, and EXTRA. Quantity
 
 One row is allowed per `(customer_id, product_id, record_date, slot)` across all statuses. A supplied Subscription must match Customer/Product and include the record date, but need not currently be ACTIVE. No Subscription is required or inferred. Positive supply requires currently ACTIVE Customer and Product.
 
+### Owner web workflow (IMPLEMENTED)
+
+The Owner "Daily records" workspace calls these endpoints unchanged; no endpoint, DTO, or status code was added or modified for it. The frontend submits only intent — customer, product, date, slot, status, quantity, and an explicit unit-price snapshot — and never sends `amount`, `subscriptionId`, or timestamps.
+
+- Reference data comes from `GET /api/owner/customers` and `GET /api/owner/products`. Customer name/phone/status and product name/unit/status are display labels resolved in the browser; `DailyRecordResponse` returns only `customerId`/`productId`.
+- The unit-price snapshot is prefilled from the current `Product.price` for operator convenience, but the owner-submitted value is what is stored. The client never recalculates or infers the snapshot from Subscription defaults.
+- The review list uses `recordDate` plus the optional `customerId`, `productId`, `slot`, and `status` filters with `page`/`size`; it does not use `fromDate`/`toDate` yet even though the endpoint supports them.
+- Correction reuses `PUT` and is exposed only for records dated today, matching the existing rule that past records return 409.
+- Duplicate-slot, closed-period, eligibility, and future-date conflicts surface as 409 and are shown to the owner as-is; no client-side business rule replaces them.
+- **PLANNED / NOT YET IMPLEMENTED:** a multi-day range control in the owner review list, and any owner-facing DailyRecord analytics or summaries.
+
 ## Billing Period Management (IMPLEMENTED)
 
 Billing periods are calendar months identified by `YYYY-MM`, with inclusive canonical first/last dates. Period inspection/closing and per-customer Bill generation/issuing are implemented.

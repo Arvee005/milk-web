@@ -25,8 +25,10 @@ Test status (current)
 - The full backend suite now contains 138 tests.
 - Test result: 138 tests run, 0 failures, 0 errors, and 0 skipped (`cd backend && ./mvnw clean test`).
 - The focused DailyRecord controller/service run contained 30 tests, all passing.
-- Frontend test result before customer-bills component coverage: 34 API/view-model tests passed. Current Phase 6.2 validation adds six DOM-backed customer bills component tests, for 40 frontend tests total.
+- Frontend test result after the owner DailyRecord entry/review slice: 39 API client tests (`authApi`, `customerApi`, `dailyRecordsApi`, `subscriptionsApi`, `billsApi`, `ownerDailyRecordsApi`) and 17 React component tests (6 customer bills, 11 owner DailyRecords), all passing, run as two sequential `node --test` invocations by `npm test`.
 - Frontend auth tests cover OWNER/CUSTOMER role routing from `/api/auth/me`, login, restoration-related API behavior, invalid credentials, token handling, and 401/403/network distinctions. Customer profile, DailyRecord, subscription, and bill API tests cover request URL/filters, no customer ID in requests, response validation, status/date labels, missing-slot representation, filter validation, pagination state, loading/empty/error handling, grouping, retry, and auth/network failures. These API tests use injected fetch functions and pure view models, not live HTTP.
+- Owner DailyRecord API client tests cover owner customer/product loading, query construction for the active filters with page/size, create and update payload shapes, rejection of malformed records/products, and 401/403/409 handling.
+- Owner DailyRecord component tests render the workspace in jsdom with synthetic responses. They cover customer/product loading, chargeable creation with the selected date/slot/quantity/price snapshot, client validation that sends no request, zero-quantity SKIPPED creation, the empty state, rejected creation and rejected correction, reference-loading failure with retry, filter application, 403 visibility with 401 session expiry, and same-day correction preserving the original price snapshot. They are DOM component tests, not live-browser or backend integration tests.
 - Customer bills component tests render the customer workspace in jsdom with synthetic API responses. They verify issued-bill period/total display, expandable line summaries, empty/loading/error/retry states, pagination requests, and the absence of paid/unpaid claims. They are DOM component tests, not live-browser or backend integration tests.
 - Frontend `npm run build` passed (TypeScript and Vite production build); `npm run lint` passed.
 - `git diff --check` passed after the Phase 4 changes.
@@ -157,6 +159,14 @@ DailyRecord controller tests cover:
 
 DailyRecord verification: 25 tests (11 controller, 14 service); full suite total 104 tests, 0 failures, 0 errors, 0 skipped.
 H2 validates the named uniqueness constraint and application behavior, but does not establish PostgreSQL concurrent-write safety.
+
+Owner DailyRecord Entry and Review tests
+No backend test was added for this slice because no backend code, endpoint, DTO, or rule changed; the existing DailyRecord controller/service coverage above remains authoritative.
+
+- `ownerDailyRecordsApi.test.ts`: owner customer/product reference loading; only-active-filter query construction including page and page size; create payload with an explicit unit-price snapshot and no subscription; update payload limited to quantity/status/price with the record ID in the path; rejection of an invalid slot and an invalid product unit; and preservation of 401, 403, and 409 statuses.
+- `ownerDailyRecords.component.test.tsx`: reference loading state, chargeable creation (EVENING, EXTRA, quantity 2.5, price 65.50) with the created card visible in the review list, quantity validation with no POST issued, SKIPPED creation sending zero quantity and a null price, empty state, rejected creation retaining entered values, rejected correction, customer-loading failure with a working retry, applied date/customer/product/slot/status filters, 403 visibility with 401 session expiry, and same-day correction sending the unchanged original price snapshot.
+
+These use injected fetch and jsdom; no live browser-to-backend DailyRecord entry workflow was performed and none is claimed.
 
 ## BillingPeriod Management tests
 BillingPeriod service tests cover:
