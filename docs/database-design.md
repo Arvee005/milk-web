@@ -125,7 +125,23 @@ BillingPeriod
   - Period initialization uses a separate transaction; the named unique key resolves concurrent first-time creation before callers lock the row.
   - Close calculates chargeable record count and amount while holding the period row lock. Only COLLECTED/EXTRA count; an empty period may close.
   - The summary is informational and does not prove physical collection completeness.
-  - No Bill is created by close. A closed period blocks DailyRecord insert/update; no Bill, Payment, or BalanceAdjustment is implemented in this milestone.
+  - No Bill is created by close. A closed period blocks DailyRecord insert/update.
+
+Bill
+- Table: bills
+- Primary key: id (UUID); required FK to BillingPeriod and Customer.
+- Fields: canonical `period_start`/`period_end`, customer name/phone/address snapshots, `total_amount NUMERIC(18,2)`, DRAFT/ISSUED status, creation time, and nullable issue timestamp/owner FK.
+- Named unique constraint `uk_bills_period_customer` prevents more than one bill per customer and period. Customer/period index supports filtered retrieval. A check constraint ties ISSUED status to issue metadata.
+- Only nonzero-total bills are generated. Total is the sum of stored DailyRecord amounts; no payments, credits, or balance are stored.
+
+BillLine
+- Table: bill_lines; required FK to Bill and source DailyRecord.
+- Fields snapshot record date, slot, product name/unit description, quantity `NUMERIC(8,3)`, unit price `NUMERIC(12,2)`, and amount `NUMERIC(18,2)`.
+- Named unique constraint `uk_bill_lines_daily_record` prevents a DailyRecord from being billed twice; index on `bill_id` supports line retrieval.
+- Bill and lines are persisted in one transaction. Snapshot columns have no update API; Bill status only transitions DRAFT -> ISSUED. No reopen/edit operation exists.
+- Customer and product/unit descriptions reflect their current labels at Bill generation because DailyRecord has no historical label snapshots; quantities and financial values come from the source DailyRecord.
+- Generation locks the CLOSED BillingPeriod row before checking for an existing bill and selecting source records. Combined with the unique customer-period constraint, retries are safe and concurrent generation is serialized for that period. H2 tests exercise behavior but do not prove PostgreSQL concurrency guarantees.
+- There is no eligibility snapshot on BillingPeriod today. Generation checks the customer's current MONTHLY billing type; customer status does not independently exclude chargeable persisted records. Currency is not persisted while INR awaits confirmation.
 
 Enums
 - BillingType: PREPAID, MONTHLY
@@ -141,16 +157,16 @@ Databases
 - Production: PostgreSQL (dependency declared in pom.xml)
 
 Planned / Not Yet Implemented Entities (from AGENTS.md / domain model)
-- Bill
 - Payment
 - BalanceAdjustment
 
-Bill, Payment, and BalanceAdjustment are explicitly NOT yet present in the schema and are listed here so future design can reference them.
+Payment and BalanceAdjustment are explicitly NOT yet present in the schema and are listed here so future design can reference them.
 
 Important business/data-design rule
 - **IMPLEMENTED:** DailyRecord snapshots unit_price at the time of the recorded supply and stores its calculated amount. Future Bills must not recalculate historical records from current Product.price.
 - **IMPLEMENTED:** BillingPeriod provides calendar-month OPEN/CLOSED state and a protected reconciliation summary.
-- **PLANNED / NOT YET IMPLEMENTED:** Bill generation from closed periods, Payment, and BalanceAdjustment.
+- **IMPLEMENTED:** Bill generation from a closed period into an immutable DRAFT snapshot and separate issue transition.
+- **PLANNED / NOT YET IMPLEMENTED:** Payment, credits/debits, and BalanceAdjustment.
 
 Product price/currency note
 - **INFERENCE:** The initial business is assumed to use one currency (likely INR based on project examples). No currency field or currency configuration is implemented. Revisit before supporting multiple currencies.

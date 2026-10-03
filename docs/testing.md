@@ -19,8 +19,8 @@ How to run tests
   cd backend && ./mvnw test
 
 Test status (current)
-- The verified backend suite contains 118 tests.
-- Test result: 118 tests run, 0 failures, 0 errors, and 0 skipped.
+- The verified backend suite contains 124 tests.
+- Test result: 124 tests run, 0 failures, 0 errors, and 0 skipped.
 - The suite was verified with `cd backend && ./mvnw clean test`.
 
 New controller tests added for GET /api/owner/customers:
@@ -133,4 +133,22 @@ BillingPeriod controller tests cover:
 
 Separate-transaction H2 race tests cover simultaneous first period initialization with close versus DailyRecord creation, and close versus a past-record update attempt. Past records are independently immutable under the existing DailyRecord rule, so the latter exercises lock ordering but cannot demonstrate a successful concurrent correction. These tests do not prove PostgreSQL lock scheduling, isolation, or concurrency safety.
 
-BillingPeriod verification: 14 tests (7 service, 5 controller, 2 concurrency); focused BillingPeriod and DailyRecord verification: 39 tests, 0 failures, 0 errors, 0 skipped. Full-suite verification after this milestone: 118 tests, 0 failures, 0 errors, 0 skipped.
+BillingPeriod verification: 14 tests (7 service, 5 controller, 2 concurrency); focused BillingPeriod and DailyRecord verification at that milestone: 39 tests, 0 failures, 0 errors, 0 skipped. The suite later passed with the totals recorded below.
+
+## Bill Generation tests
+Bill service tests cover:
+- generation for a MONTHLY customer using persisted COLLECTED/EXTRA records and stored amounts
+- exclusion of PREPAID customers and SKIPPED/PAUSED records
+- preservation of quantity, unit-price, amount, customer, and product/unit description snapshots
+- rejection for open, empty, and zero-total periods without creating a Bill
+- duplicate generation returning the existing Bill
+- DRAFT-to-ISSUED transition, idempotent reissue, and prevention of source DailyRecord edits after close
+
+Bill controller tests cover:
+- OWNER generation, retrieval, filtered pagination, and issuing
+- malformed period (400), open period / ineligible state conflicts (409), and missing bill (404)
+- unauthenticated 401 and CUSTOMER 403 access restrictions
+
+The period row lock serializes bill generation per closed period; database unique constraints protect customer-period and source-record uniqueness. Tests use H2 and do not prove PostgreSQL-specific lock/concurrency behavior.
+
+Bill verification: 6 tests (4 service, 2 controller); combined BillingPeriod, DailyRecord, and Bill verification: 45 tests, 0 failures, 0 errors, 0 skipped. Full-suite verification after Bill Generation: 124 tests, 0 failures, 0 errors, 0 skipped.

@@ -172,7 +172,13 @@ Complexity:
 - Inspect: O(1) application orchestration plus a period-key lookup and indexed date-range aggregate.
 - Close: O(1) application orchestration plus one period-row lock and an aggregate over matching chargeable DailyRecords; database work depends on the date indexes and matching rows.
 - DailyRecord write: period-key lookup/initialization and lock plus existing entity/duplicate lookups and insert/update.
-**PLANNED / NOT YET IMPLEMENTED:** Bill generation from closed periods, Payment, and BalanceAdjustment. Close and generation/issue are distinct operations.
+## Bill generation and issue
+What it is: one Bill per customer and closed calendar month, generated from actual COLLECTED/EXTRA DailyRecords; recurring Subscription defaults are not charges.
+Snapshots: header stores customer contact details and canonical period; each line copies the source record ID/date/slot, product and unit description, quantity, unit price, and stored amount. Header total is the sum of line amounts. No current Product.price is used. Customer/product labels are captured at bill generation because those labels are not stored on DailyRecord.
+Workflow: owner generation creates a nonzero DRAFT. A separate owner issue call transitions it to ISSUED with timestamp and issuer ID. There is no edit/reopen endpoint, and repeat generation/issue returns the existing result.
+Eligibility: no close-time eligibility snapshot exists on BillingPeriod. Generation therefore checks current MONTHLY billing type; PREPAID is excluded. Customer status does not independently suppress actual persisted chargeable records. Currency is omitted until INR is explicitly confirmed.
+Concurrency: generation locks the CLOSED BillingPeriod row before checking/creating; named uniqueness on `(period, customer)` and source DailyRecord prevents duplicate bill/line association. Persistence of header and lines is atomic. H2 behavior does not establish PostgreSQL concurrency guarantees.
+**PLANNED / NOT YET IMPLEMENTED:** Payment, credits, late charges, and BalanceAdjustment. They are intentionally not included in the Bill total.
 
 ## Future / when introduced
 - Caching strategies (if performance needs grow)

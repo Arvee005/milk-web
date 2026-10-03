@@ -150,7 +150,7 @@ Only ACTIVE subscriptions participate in overlap checks. For the same Customer a
 
 `Subscription.defaultQuantity` is a recurring default only. Implemented DailyRecord entries capture actual supply and snapshot their applied unit price; neither Product price changes nor Subscription edits may recalculate historical DailyRecords or Bills.
 
-**PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription APIs, Bill generation, and Payment. BillingPeriod inspection/closing is implemented below. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** database-level protection against concurrent overlapping writes for PostgreSQL.
+**PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription APIs and Payment. BillingPeriod inspection/closing and Bill generation are implemented below. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** database-level protection against concurrent overlapping writes for PostgreSQL.
 
 ## DailyRecord Management (IMPLEMENTED)
 
@@ -186,7 +186,7 @@ One row is allowed per `(customer_id, product_id, record_date, slot)` across all
 
 ## Billing Period Management (IMPLEMENTED)
 
-Billing periods are calendar months identified by `YYYY-MM`, with inclusive canonical first/last dates. This module implements period inspection and explicit closing only; it does not generate or issue Bills.
+Billing periods are calendar months identified by `YYYY-MM`, with inclusive canonical first/last dates. Period inspection/closing and per-customer Bill generation/issuing are implemented.
 
 1) `GET /api/owner/billing-periods/{period}`
 - Returns a `BillingPeriodResponse` with dates, OPEN/CLOSED state, closure metadata, and an informational chargeable-record count/amount.
@@ -200,9 +200,23 @@ Billing periods are calendar months identified by `YYYY-MM`, with inclusive cano
 - The response includes the chargeable-record summary calculated while the period is locked.
 - Errors: 400 malformed/impossible `YYYY-MM`; 401 unauthenticated; 403 non-OWNER; 409 current/future month close or DailyRecord write attempted for a CLOSED period.
 
+3) `POST /api/owner/billing-periods/{period}/bills/{customerId}`
+- Generates a DRAFT bill for one customer from actual COLLECTED/EXTRA DailyRecords in the closed period. PREPAID customers are rejected; SKIPPED/PAUSED records are excluded. Subscription defaults are not billed.
+- Customer details, product/unit description, DailyRecord date/slot, quantity, unit price, and amount are copied to bill snapshots. The bill total is the sum of stored DailyRecord amounts; current Product.price is not read for pricing.
+- Customer and product/unit labels are copied as they exist when the Bill is generated; DailyRecord itself does not snapshot those labels.
+- Empty or zero-total bills are rejected with 409. Repeating generation returns the existing bill. Generation returns 200 to support this idempotent behavior.
+
+4) `GET /api/owner/bills/{billId}` and `GET /api/owner/bills?customerId={uuid}&period=YYYY-MM&page=0&size=50`
+- Retrieve a bill with immutable lines or filter the paginated owner list. Page size is 1-100.
+
+5) `POST /api/owner/bills/{billId}/issue`
+- Transitions a DRAFT to ISSUED and records timestamp and owner ID. Repeated issue returns the existing issued snapshot. No update or reopen endpoint exists.
+
+Errors: 400 malformed/impossible period, invalid UUID, or invalid pagination; 401 unauthenticated; 403 non-OWNER; 404 unknown bill/customer; 409 period is not CLOSED, customer is not MONTHLY, or bill has no nonzero chargeable records.
+
 DailyRecord writes initialize an OPEN period row if needed and acquire the same database row lock held during closing. No DailyRecord may be created or updated after closure. Same-day corrections and backdated inserts remain permitted while the relevant period is OPEN. Read-only inspection does not create period rows. Initializing a period row uses a separate transaction and a named unique key to safely resolve concurrent first-time creation.
 
-**PLANNED / NOT YET IMPLEMENTED:** Bill generation, immutable Bill line snapshots, Payment, and BalanceAdjustment. Bills will be generated only for closed periods and from actual chargeable DailyRecords; Subscriptions do not generate charges. H2 concurrency tests do not prove PostgreSQL concurrency safety.
+No customer-eligibility snapshot is currently captured when a period closes. Accordingly, generation checks the customer's current `MONTHLY` billing type; customer status is not an additional exclusion when qualifying persisted chargeable records exist. Currency is not stored pending explicit INR confirmation. Payment, credit/debit allocation, late charges, and BalanceAdjustment remain **PLANNED / NOT YET IMPLEMENTED**. H2 tests do not prove PostgreSQL concurrency safety.
 
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)

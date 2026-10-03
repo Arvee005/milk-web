@@ -16,7 +16,7 @@ Added OWNER endpoints to create, filter/list with pagination, retrieve, and same
 - One row per customer/product/date/slot is enforced by application check and named database unique constraint.
 
 ## Future Work
-- BillingPeriod close/reconciliation is implemented in a later milestone. **PLANNED / NOT YET IMPLEMENTED:** Bill generation, Payment, and BalanceAdjustment; future billing must use stored DailyRecord amounts.
+- BillingPeriod close/reconciliation and Bill generation/issuing are implemented in later milestones. **PLANNED / NOT YET IMPLEMENTED:** Payment and BalanceAdjustment; bills use stored DailyRecord amounts.
 - H2 tests validate functional behavior but do not prove concurrent PostgreSQL write safety.
 
 ## Tests
@@ -39,7 +39,7 @@ Added OWNER endpoints to create, list/filter, retrieve, and update recurring sub
 ## Data Integrity and Future Work
 - Application-level overlap detection is IMPLEMENTED.
 - **PLANNED / NOT YET IMPLEMENTED:** database-level enforcement against concurrent overlapping PostgreSQL writes. No migration infrastructure or exclusion constraint was added in this module.
-- **PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription API, Bill generation, and Payment. BillingPeriod closing is implemented separately; DailyRecord snapshots the actual supply price.
+- **PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription API and Payment. BillingPeriod closing and Bill generation are implemented separately; DailyRecord snapshots the actual supply price.
 
 ## Tests
 Service and controller integration tests cover creation, exact quantities/dates, relationship IDs, filters, validation, eligibility, overlap boundaries, updates, historical preservation, DTO boundaries, and OWNER authorization. Final full-suite results are recorded in `docs/testing.md` after verification.
@@ -61,11 +61,26 @@ Added owner inspection and explicit close operations for canonical calendar-mont
 - H2 tests exercise application-level races but do not prove PostgreSQL locking or concurrency behavior.
 
 ## Future Work
-- **PLANNED / NOT YET IMPLEMENTED:** Bill generation/issuing, Payment, and BalanceAdjustment.
+- **PLANNED / NOT YET IMPLEMENTED:** Payment and BalanceAdjustment.
 - The reconciliation summary does not prove every physical collection was recorded.
 
 ## Tests
 BillingPeriod tests cover month parsing/boundaries, read-only lookup, empty/non-empty close summaries, closure metadata, repeated close, DailyRecord write/update restrictions, security, and H2 close-versus-write races. Verified suite totals are recorded in `docs/testing.md`.
+
+## Git Commit
+No commit was created as part of this implementation.
+
+# Bill Generation (IMPLEMENTED)
+
+## Workflow and Snapshot
+Owner generation creates one nonzero DRAFT per MONTHLY customer and CLOSED calendar month from actual COLLECTED/EXTRA DailyRecords; PREPAID, SKIPPED, and PAUSED are excluded. Header snapshots customer details and period; lines snapshot source record ID/date/slot, product/unit description, quantity, unit price, and stored amount. Bill total is the sum of source amounts. Current Product.price is not used.
+
+Issuing is a separate owner action, records timestamp and issuer, and cannot be reversed through the API. Repeated generation and issue requests return the existing bill. No payments, credits, or BalanceAdjustments are included.
+
+The period-close design does not store customer eligibility snapshots. Bill generation checks current billing type and does not use Customer status as an additional exclusion. Currency is not persisted pending confirmation of INR.
+
+## Verification
+Bill tests cover generation, pricing/quantity snapshots, billing-type and record-status eligibility, open/empty/zero periods, retries, issuing, DTO responses, and owner authorization. H2 does not prove PostgreSQL concurrency guarantees.
 
 ## Git Commit
 No commit was created as part of this implementation.

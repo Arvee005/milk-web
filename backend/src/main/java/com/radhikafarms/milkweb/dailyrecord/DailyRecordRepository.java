@@ -8,9 +8,27 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public interface DailyRecordRepository extends JpaRepository<DailyRecord, UUID> {
+
+    @Query("""
+            select d from DailyRecord d
+            join fetch d.product p
+            where d.customer.id = :customerId
+              and d.recordDate >= :periodStart
+              and d.recordDate <= :periodEnd
+              and d.status in (
+                com.radhikafarms.milkweb.dailyrecord.DailyRecordStatus.COLLECTED,
+                com.radhikafarms.milkweb.dailyrecord.DailyRecordStatus.EXTRA)
+            order by d.recordDate, d.slot, d.id
+            """)
+    List<DailyRecord> findChargeableRecords(
+            @Param("customerId") UUID customerId,
+            @Param("periodStart") LocalDate periodStart,
+            @Param("periodEnd") LocalDate periodEnd
+    );
 
     @Query("""
             select new com.radhikafarms.milkweb.billing.DailyRecordPeriodSummary(

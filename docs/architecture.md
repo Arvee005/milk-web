@@ -44,6 +44,6 @@ How this supports mobile apps
 
 Current vs future
 - Implemented backend modules include authentication, users, customers, products, owner-managed subscriptions, owner-managed DailyRecords, and BillingPeriod reconciliation/closing, following the layered pattern.
-- Subscription supplies a recurring default; DailyRecord records the actual outcome for a customer/product/date/collection slot. A closed BillingPeriod prevents later DailyRecord writes and provides an informational reconciliation summary. Bill generation, payments, and adjustments remain future modules; future Bills must snapshot stored DailyRecord amounts and price snapshots.
+- Subscription supplies a recurring default; DailyRecord records the actual outcome for a customer/product/date/collection slot. A closed BillingPeriod prevents later DailyRecord writes and provides an informational reconciliation summary. Bill generation snapshots those stored chargeable records into a DRAFT; a separate owner action issues the Bill. Payments and adjustments remain future modules.
 
 Read more: docs/decisions/ADR-008-react-vite-frontend.md, docs/decisions/ADR-001-jwt-authentication.md

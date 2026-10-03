@@ -305,13 +305,14 @@ Do not merge them.
 - Close returns an informational count and sum of COLLECTED/EXTRA records; this does not prove no physical collection was missed. Closing does not generate or issue a Bill.
 - Period close and DailyRecord writes coordinate using the same pessimistic database row lock. H2 tests do not prove PostgreSQL concurrency behavior.
 
-## Bill (planned)
-- A Bill is an immutable snapshot generated only from actual chargeable DailyRecords in a closed month.
-- Monthly billing applies to MONTHLY customers; PREPAID customers are excluded for v1.
-- Do NOT calculate monthly bills from Subscription defaults.
-- Duplicate generation retries return the existing Bill.
-- Do not store independently editable `paid_amount` or payment status on Bill; Payment is a separate future module.
-- Bill generation, BillLineItem, Payment, and BalanceAdjustment are PLANNED / NOT YET IMPLEMENTED.
+## Bill (generation and issue implemented)
+- A Bill is an immutable snapshot generated per customer only from actual chargeable DailyRecords in a CLOSED month.
+- MONTHLY customers are eligible; PREPAID customers are excluded. No billing-eligibility snapshot exists on BillingPeriod, so generation uses the customer's current billing type. Customer status does not independently exclude persisted chargeable records.
+- Do NOT calculate monthly bills from Subscription defaults. Only COLLECTED/EXTRA DailyRecords are billable; SKIPPED/PAUSED are excluded.
+- A nonzero DRAFT is created first; issuing is a separate owner action. Repeated generation returns the existing bill; repeated issuing is idempotent.
+- Bill/customer/line snapshots are not editable through the API. Issued bills cannot be reopened. Payments/credits are not included.
+- Payment and BalanceAdjustment are PLANNED / NOT YET IMPLEMENTED.
+- Currency is not persisted; INR remains an assumption awaiting explicit confirmation.
 
 ---
 
@@ -811,4 +812,3 @@ Documentation must clearly label items as:
 - INFERENCE (reason inferred; not explicitly recorded)
 
 Do NOT modify other parts of this file when updating this section.
-
