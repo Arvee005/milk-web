@@ -104,6 +104,29 @@ DailyRecord
   - Past records can be created with an explicit historical snapshot but cannot be updated. Only today's records permit correction.
   - Duplicate checks run in the service and the database unique constraint remains authoritative. H2 does not prove PostgreSQL concurrent-write safety.
 
+BillingPeriod
+- Table: billing_periods
+- Primary key: id (UUID, generated)
+- Fields:
+  - period_start / period_end: required canonical inclusive `LocalDate` month boundaries
+  - status: `BillingPeriodStatus` (OPEN, CLOSED), persisted as STRING
+  - created_at: required server-managed `Instant`
+  - closed_at: nullable server-managed `Instant`
+  - closed_by: nullable lazy FK -> users.id; populated on close
+- Constraints and indexes:
+  - Named unique constraint `uk_billing_periods_period_start` prevents duplicate period rows.
+  - A database check keeps CLOSED status and closure metadata consistent.
+  - Application validation restricts period identifiers to valid `YYYY-MM` calendar months and canonical first/last dates.
+- Business rules:
+  - Periods begin OPEN; close is explicit, irreversible in v1, and idempotent to repeat.
+  - Only completed calendar months may be closed. The business date uses the explicit `Asia/Kolkata` zone rather than the host machine default; current/future periods remain inspectable.
+  - GET inspection does not create a missing row; a missing period is reported as OPEN with virtual canonical boundaries.
+  - DailyRecord create/update and period close coordinate on a pessimistically locked BillingPeriod row. DailyRecord current/past date rules use the same `Asia/Kolkata` business clock.
+  - Period initialization uses a separate transaction; the named unique key resolves concurrent first-time creation before callers lock the row.
+  - Close calculates chargeable record count and amount while holding the period row lock. Only COLLECTED/EXTRA count; an empty period may close.
+  - The summary is informational and does not prove physical collection completeness.
+  - No Bill is created by close. A closed period blocks DailyRecord insert/update; no Bill, Payment, or BalanceAdjustment is implemented in this milestone.
+
 Enums
 - BillingType: PREPAID, MONTHLY
 - CustomerStatus: ACTIVE, PAUSED, INACTIVE
@@ -122,11 +145,12 @@ Planned / Not Yet Implemented Entities (from AGENTS.md / domain model)
 - Payment
 - BalanceAdjustment
 
-These are described in AGENTS.md and will be implemented later. They are explicitly NOT yet present in the schema and are listed here so future migrations and design can reference them.
+Bill, Payment, and BalanceAdjustment are explicitly NOT yet present in the schema and are listed here so future design can reference them.
 
 Important business/data-design rule
 - **IMPLEMENTED:** DailyRecord snapshots unit_price at the time of the recorded supply and stores its calculated amount. Future Bills must not recalculate historical records from current Product.price.
-- **PLANNED / NOT YET IMPLEMENTED:** Bill, Payment, and billing-period aggregation.
+- **IMPLEMENTED:** BillingPeriod provides calendar-month OPEN/CLOSED state and a protected reconciliation summary.
+- **PLANNED / NOT YET IMPLEMENTED:** Bill generation from closed periods, Payment, and BalanceAdjustment.
 
 Product price/currency note
 - **INFERENCE:** The initial business is assumed to use one currency (likely INR based on project examples). No currency field or currency configuration is implemented. Revisit before supporting multiple currencies.

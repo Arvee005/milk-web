@@ -1,5 +1,6 @@
 package com.radhikafarms.milkweb.dailyrecord;
 
+import com.radhikafarms.milkweb.billing.DailyRecordPeriodSummary;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,21 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public interface DailyRecordRepository extends JpaRepository<DailyRecord, UUID> {
+
+    @Query("""
+            select new com.radhikafarms.milkweb.billing.DailyRecordPeriodSummary(
+                count(d), coalesce(sum(d.amount), 0))
+            from DailyRecord d
+            where d.recordDate >= :periodStart
+              and d.recordDate <= :periodEnd
+              and d.status in (
+                com.radhikafarms.milkweb.dailyrecord.DailyRecordStatus.COLLECTED,
+                com.radhikafarms.milkweb.dailyrecord.DailyRecordStatus.EXTRA)
+            """)
+    DailyRecordPeriodSummary summarizeChargeableRecords(
+            @Param("periodStart") LocalDate periodStart,
+            @Param("periodEnd") LocalDate periodEnd
+    );
 
     boolean existsByCustomer_IdAndProduct_IdAndRecordDateAndSlot(
             UUID customerId, UUID productId, LocalDate recordDate, DailyRecordSlot slot);

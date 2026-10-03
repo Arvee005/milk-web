@@ -41,6 +41,12 @@ DailyRecord Management (IMPLEMENTED)
 - DTOs expose related resource IDs and recorded values only; they do not expose nested entities or authentication information.
 - Customer-facing DailyRecord APIs are PLANNED / NOT YET IMPLEMENTED.
 
+Billing Period Management (IMPLEMENTED)
+- Owner period inspection and close endpoints use the existing `/api/owner/**` ROLE_OWNER rule; SecurityConfig was not modified.
+- Unauthenticated requests receive 401; CUSTOMER requests receive 403.
+- Responses expose only period state, dates, aggregate count/amount, timestamps, and the closing User UUID; no User or authentication data is serialized.
+- Bill generation and customer-facing bill APIs are PLANNED / NOT YET IMPLEMENTED.
+
 Secrets and configuration
 - JWT secret is read from configuration (milkweb.jwt.secret). Defaults should not be committed. For dev, application-dev.properties contains a dev-only secret.
 - Do NOT commit production secrets.

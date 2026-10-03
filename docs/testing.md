@@ -19,8 +19,8 @@ How to run tests
   cd backend && ./mvnw test
 
 Test status (current)
-- The verified backend suite contains 104 tests.
-- Test result: 104 tests run, 0 failures, 0 errors, and 0 skipped.
+- The verified backend suite contains 118 tests.
+- Test result: 118 tests run, 0 failures, 0 errors, and 0 skipped.
 - The suite was verified with `cd backend && ./mvnw clean test`.
 
 New controller tests added for GET /api/owner/customers:
@@ -114,3 +114,23 @@ DailyRecord controller tests cover:
 
 DailyRecord verification: 25 tests (11 controller, 14 service); full suite total 104 tests, 0 failures, 0 errors, 0 skipped.
 H2 validates the named uniqueness constraint and application behavior, but does not establish PostgreSQL concurrent-write safety.
+
+## BillingPeriod Management tests
+BillingPeriod service tests cover:
+- valid `YYYY-MM` periods, invalid identifiers, canonical boundaries, and leap-year February
+- current/future inspection versus rejection of current/future close using the explicit business clock
+- read-only inspection without creating a persisted OPEN row
+- close metadata, empty-period close, repeated idempotent close, and chargeable count/amount
+- inclusion of COLLECTED/EXTRA and exclusion of SKIPPED/PAUSED
+- blocking new/backdated DailyRecords and updates after closure while preserving same-day correction in OPEN periods
+
+BillingPeriod controller tests cover:
+- OWNER inspection/close and response DTO fields
+- malformed/impossible period input as 400
+- current/future inspection allowed and close rejected with 409
+- DailyRecord create into a closed period returns 409
+- unauthenticated 401 and CUSTOMER 403
+
+Separate-transaction H2 race tests cover simultaneous first period initialization with close versus DailyRecord creation, and close versus a past-record update attempt. Past records are independently immutable under the existing DailyRecord rule, so the latter exercises lock ordering but cannot demonstrate a successful concurrent correction. These tests do not prove PostgreSQL lock scheduling, isolation, or concurrency safety.
+
+BillingPeriod verification: 14 tests (7 service, 5 controller, 2 concurrency); focused BillingPeriod and DailyRecord verification: 39 tests, 0 failures, 0 errors, 0 skipped. Full-suite verification after this milestone: 118 tests, 0 failures, 0 errors, 0 skipped.

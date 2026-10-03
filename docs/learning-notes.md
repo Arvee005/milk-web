@@ -159,7 +159,20 @@ Complexity:
 - Filtered date range: O(k) application work; customer/date or product/date indexes support database filtering.
 - Duplicate check: indexed existence check, typically O(log n); the named unique constraint is authoritative.
 - Update: O(1) application work plus indexed record lookup and update, typically O(log n) database index work.
-PLANNED / NOT YET IMPLEMENTED: Bill and Payment will consume DailyRecord amounts; no billing aggregation is implemented here.
+
+## Billing period closing and DailyRecord coordination
+What it is: BillingPeriod represents one canonical calendar month and transitions once from OPEN to CLOSED after explicit owner reconciliation.
+Semantics: a missing period is treated as virtual OPEN for read-only inspection; inspection does not create the row. Close may create an empty period row, is idempotent, and does not create a Bill.
+Calendar boundary: only completed months can close. `Clock.system(ZoneId.of("Asia/Kolkata"))` supplies a stable business date instead of depending on the host timezone; current/future months can still be inspected.
+Summary: closing counts/sums persisted COLLECTED and EXTRA DailyRecords while the period is protected; SKIPPED/PAUSED are excluded. It is informational and cannot prove that all physical collection was entered.
+Coordination: DailyRecord create and update initialize the period row in a separate transaction, then acquire its pessimistic database row lock. Close uses that same row lock, calculates summary and stores closure metadata in one transaction. Competing first-time initialization is resolved by the named unique period-start constraint.
+Corrections: same-day corrections remain possible while OPEN. Once CLOSED, inserts (including backfills) and updates are rejected; issued financial history must later be corrected through a separate auditable operation, not by rewriting DailyRecords.
+Concurrency: H2 tests exercise races through separate transactions, but do not establish PostgreSQL lock/isolation behavior. A PostgreSQL concurrency test is required before asserting production database guarantees.
+Complexity:
+- Inspect: O(1) application orchestration plus a period-key lookup and indexed date-range aggregate.
+- Close: O(1) application orchestration plus one period-row lock and an aggregate over matching chargeable DailyRecords; database work depends on the date indexes and matching rows.
+- DailyRecord write: period-key lookup/initialization and lock plus existing entity/duplicate lookups and insert/update.
+**PLANNED / NOT YET IMPLEMENTED:** Bill generation from closed periods, Payment, and BalanceAdjustment. Close and generation/issue are distinct operations.
 
 ## Future / when introduced
 - Caching strategies (if performance needs grow)

@@ -16,7 +16,7 @@ Added OWNER endpoints to create, filter/list with pagination, retrieve, and same
 - One row per customer/product/date/slot is enforced by application check and named database unique constraint.
 
 ## Future Work
-- **PLANNED / NOT YET IMPLEMENTED:** Bill, Payment, and billing aggregation; future billing must use stored DailyRecord amounts.
+- BillingPeriod close/reconciliation is implemented in a later milestone. **PLANNED / NOT YET IMPLEMENTED:** Bill generation, Payment, and BalanceAdjustment; future billing must use stored DailyRecord amounts.
 - H2 tests validate functional behavior but do not prove concurrent PostgreSQL write safety.
 
 ## Tests
@@ -39,10 +39,33 @@ Added OWNER endpoints to create, list/filter, retrieve, and update recurring sub
 ## Data Integrity and Future Work
 - Application-level overlap detection is IMPLEMENTED.
 - **PLANNED / NOT YET IMPLEMENTED:** database-level enforcement against concurrent overlapping PostgreSQL writes. No migration infrastructure or exclusion constraint was added in this module.
-- **PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription API, Billing, and Payment. DailyRecord is implemented separately and snapshots the actual supply price.
+- **PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription API, Bill generation, and Payment. BillingPeriod closing is implemented separately; DailyRecord snapshots the actual supply price.
 
 ## Tests
 Service and controller integration tests cover creation, exact quantities/dates, relationship IDs, filters, validation, eligibility, overlap boundaries, updates, historical preservation, DTO boundaries, and OWNER authorization. Final full-suite results are recorded in `docs/testing.md` after verification.
+
+## Git Commit
+No commit was created as part of this implementation.
+
+# Billing Period Management (IMPLEMENTED)
+
+## What We Did
+Added owner inspection and explicit close operations for canonical calendar-month periods. Read-only inspection does not create a period row; DailyRecord writes and close safely initialize missing periods.
+
+## Reconciliation and Coordination
+- Close stores CLOSED state, timestamp, and owner UUID reference and returns an informational COLLECTED/EXTRA count and amount.
+- Closing an empty period is allowed, repeated close is idempotent, and closing does not create a Bill.
+- Only completed months may close; the Asia/Kolkata business clock makes this independent of the server's configured timezone.
+- DailyRecord create/update and close serialize through the same pessimistic lock on the BillingPeriod row. The month row is initialized in a separate transaction and a named unique constraint resolves concurrent first creation.
+- Closed periods reject new and backdated DailyRecords and updates. Same-day corrections remain available before close.
+- H2 tests exercise application-level races but do not prove PostgreSQL locking or concurrency behavior.
+
+## Future Work
+- **PLANNED / NOT YET IMPLEMENTED:** Bill generation/issuing, Payment, and BalanceAdjustment.
+- The reconciliation summary does not prove every physical collection was recorded.
+
+## Tests
+BillingPeriod tests cover month parsing/boundaries, read-only lookup, empty/non-empty close summaries, closure metadata, repeated close, DailyRecord write/update restrictions, security, and H2 close-versus-write races. Verified suite totals are recorded in `docs/testing.md`.
 
 ## Git Commit
 No commit was created as part of this implementation.

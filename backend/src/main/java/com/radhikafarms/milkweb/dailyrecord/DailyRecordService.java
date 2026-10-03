@@ -4,6 +4,7 @@ import com.radhikafarms.milkweb.customer.Customer;
 import com.radhikafarms.milkweb.customer.CustomerRepository;
 import com.radhikafarms.milkweb.customer.CustomerStatus;
 import com.radhikafarms.milkweb.customer.exception.CustomerNotFoundException;
+import com.radhikafarms.milkweb.billing.BillingPeriodService;
 import com.radhikafarms.milkweb.dailyrecord.exception.DailyRecordConflictException;
 import com.radhikafarms.milkweb.dailyrecord.exception.DailyRecordNotFoundException;
 import com.radhikafarms.milkweb.dailyrecord.exception.DuplicateDailyRecordException;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -33,25 +35,32 @@ public class DailyRecordService {
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
 
     private final DailyRecordRepository dailyRecordRepository;
+    private final BillingPeriodService billingPeriodService;
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final Clock businessClock;
 
     public DailyRecordService(
             DailyRecordRepository dailyRecordRepository,
+            BillingPeriodService billingPeriodService,
             CustomerRepository customerRepository,
             ProductRepository productRepository,
-            SubscriptionRepository subscriptionRepository
+            SubscriptionRepository subscriptionRepository,
+            Clock businessClock
     ) {
         this.dailyRecordRepository = dailyRecordRepository;
+        this.billingPeriodService = billingPeriodService;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.businessClock = businessClock;
     }
 
     @Transactional
     public DailyRecord createDailyRecord(OwnerCreateDailyRecordRequest request) {
         validateCreateValues(request);
+        billingPeriodService.lockOpenPeriodForDailyRecord(request.recordDate());
         Customer customer = customerRepository.findById(request.customerId())
                 .orElseThrow(() -> new CustomerNotFoundException("Customer not found: " + request.customerId()));
         Product product = productRepository.findById(request.productId())
@@ -109,7 +118,8 @@ public class DailyRecordService {
     public DailyRecord updateDailyRecord(UUID dailyRecordId, OwnerUpdateDailyRecordRequest request) {
         DailyRecord record = dailyRecordRepository.findById(dailyRecordId)
                 .orElseThrow(() -> new DailyRecordNotFoundException(dailyRecordId));
-        if (record.getRecordDate().isBefore(LocalDate.now())) {
+        billingPeriodService.lockOpenPeriodForDailyRecord(record.getRecordDate());
+        if (record.getRecordDate().isBefore(LocalDate.now(businessClock))) {
             throw new DailyRecordConflictException("Past daily records cannot be updated");
         }
         validateUpdateValues(request);
@@ -163,7 +173,7 @@ public class DailyRecordService {
             throw new DailyRecordConflictException("Required DailyRecord fields are missing");
         }
         validateQuantityAndPrice(request.quantity(), request.unitPriceSnapshot(), request.status());
-        if (request.recordDate().isAfter(LocalDate.now())) {
+        if (request.recordDate().isAfter(LocalDate.now(businessClock))) {
             throw new DailyRecordConflictException("Daily records cannot be created for a future date");
         }
     }

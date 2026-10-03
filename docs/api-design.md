@@ -150,7 +150,7 @@ Only ACTIVE subscriptions participate in overlap checks. For the same Customer a
 
 `Subscription.defaultQuantity` is a recurring default only. Implemented DailyRecord entries capture actual supply and snapshot their applied unit price; neither Product price changes nor Subscription edits may recalculate historical DailyRecords or Bills.
 
-**PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription APIs, Billing, and Payment. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** database-level protection against concurrent overlapping writes for PostgreSQL.
+**PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription APIs, Bill generation, and Payment. BillingPeriod inspection/closing is implemented below. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** database-level protection against concurrent overlapping writes for PostgreSQL.
 
 ## DailyRecord Management (IMPLEMENTED)
 
@@ -184,7 +184,25 @@ DailyRecord statuses are exactly COLLECTED, SKIPPED, PAUSED, and EXTRA. Quantity
 
 One row is allowed per `(customer_id, product_id, record_date, slot)` across all statuses. A supplied Subscription must match Customer/Product and include the record date, but need not currently be ACTIVE. No Subscription is required or inferred. Positive supply requires currently ACTIVE Customer and Product.
 
-**PLANNED / NOT YET IMPLEMENTED:** Bill/Payment and billing-period aggregation. Future Bills must use stored DailyRecord amounts/snapshots, never current Product.price. Database uniqueness protects the duplicate invariant; H2 tests do not prove PostgreSQL concurrency behavior.
+## Billing Period Management (IMPLEMENTED)
+
+Billing periods are calendar months identified by `YYYY-MM`, with inclusive canonical first/last dates. This module implements period inspection and explicit closing only; it does not generate or issue Bills.
+
+1) `GET /api/owner/billing-periods/{period}`
+- Returns a `BillingPeriodResponse` with dates, OPEN/CLOSED state, closure metadata, and an informational chargeable-record count/amount.
+- A missing period row is represented as OPEN without creating a row. Existing DailyRecords are included in the summary.
+- The summary includes only COLLECTED/EXTRA DailyRecords and does not prove that every physical collection was recorded.
+
+2) `POST /api/owner/billing-periods/{period}/close`
+- Closes the calendar month after owner reconciliation; empty months may be closed.
+- Only completed months may be closed; current and future month inspection remains available.
+- Closing is idempotent; repeated requests return the persisted CLOSED period and original closure metadata.
+- The response includes the chargeable-record summary calculated while the period is locked.
+- Errors: 400 malformed/impossible `YYYY-MM`; 401 unauthenticated; 403 non-OWNER; 409 current/future month close or DailyRecord write attempted for a CLOSED period.
+
+DailyRecord writes initialize an OPEN period row if needed and acquire the same database row lock held during closing. No DailyRecord may be created or updated after closure. Same-day corrections and backdated inserts remain permitted while the relevant period is OPEN. Read-only inspection does not create period rows. Initializing a period row uses a separate transaction and a named unique key to safely resolve concurrent first-time creation.
+
+**PLANNED / NOT YET IMPLEMENTED:** Bill generation, immutable Bill line snapshots, Payment, and BalanceAdjustment. Bills will be generated only for closed periods and from actual chargeable DailyRecords; Subscriptions do not generate charges. H2 concurrency tests do not prove PostgreSQL concurrency safety.
 
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)

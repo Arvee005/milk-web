@@ -98,6 +98,7 @@ Customer
 Product
 Subscription
 DailyRecord
+BillingPeriod
 Bill
 Payment
 BalanceAdjustment
@@ -297,28 +298,20 @@ Do not merge them.
 
 # 12. BILLING
 
-Bill represents a generated billing snapshot.
+## BillingPeriod (implemented)
+- A period is one canonical calendar month, identified by `YYYY-MM`, with inclusive first/last dates.
+- Periods start OPEN and an OWNER explicitly closes them after reconciliation. Closing is idempotent and cannot be reversed in v1.
+- A closed period blocks DailyRecord creation (including backdated records) and updates. Same-day correction remains allowed while OPEN.
+- Close returns an informational count and sum of COLLECTED/EXTRA records; this does not prove no physical collection was missed. Closing does not generate or issue a Bill.
+- Period close and DailyRecord writes coordinate using the same pessimistic database row lock. H2 tests do not prove PostgreSQL concurrency behavior.
 
-Concept:
-
-Bill
-- id
-- customer_id
-- period_start
-- period_end
-- total_amount
-- paid_amount
-- status
-
-Statuses:
-
-UNPAID
-PARTIAL
-PAID
-
-Monthly billing is based on actual DailyRecord entries.
-
-Do NOT calculate monthly bills from subscription defaults.
+## Bill (planned)
+- A Bill is an immutable snapshot generated only from actual chargeable DailyRecords in a closed month.
+- Monthly billing applies to MONTHLY customers; PREPAID customers are excluded for v1.
+- Do NOT calculate monthly bills from Subscription defaults.
+- Duplicate generation retries return the existing Bill.
+- Do not store independently editable `paid_amount` or payment status on Bill; Payment is a separate future module.
+- Bill generation, BillLineItem, Payment, and BalanceAdjustment are PLANNED / NOT YET IMPLEMENTED.
 
 ---
 
