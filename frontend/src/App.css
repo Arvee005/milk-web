@@ -132,6 +132,10 @@ td { height: 58px; border-top: 1px solid #eff2ee; color: #617168; font-size: 10p
 .full-button { margin-top: 4px; width: 100%; }
 .privacy-note { margin: 15px 0 0; text-align: center; color: #9aa59d; font-size: 9px; }
 .login-art { position: relative; overflow: hidden; background: #e7f0e6; min-height: 100vh; }
+.session-status { min-height: 100vh; display: grid; place-items: center; padding: 24px; color: var(--muted); }
+.session-error { width: min(440px, 100%); padding: 30px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.session-error h1 { margin: 0 0 12px; font-size: 24px; }
+.session-error .signout-button { display: block; margin-top: 12px; }
 .art-sun { position: absolute; top: 16%; right: 22%; width: 190px; height: 190px; border-radius: 50%; background: #f5d5a2; opacity: .8; }
 .art-hill { position: absolute; bottom: -7%; left: -5%; width: 120%; height: 61%; border-radius: 50% 50% 0 0; }
 .hill-one { background: #7eac89; transform: rotate(-9deg); }

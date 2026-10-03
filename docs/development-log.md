@@ -85,6 +85,34 @@ Bill tests cover generation, pricing/quantity snapshots, billing-type and record
 ## Git Commit
 No commit was created as part of this implementation.
 
+# Frontend Authentication Flow (IMPLEMENTED)
+
+## What Was Implemented
+- Reused the existing phone/password `POST /api/auth/login` and JWT `GET /api/auth/me` contracts.
+- Added a shared TypeScript authentication API client with response-shape validation, bearer-header handling, and distinct user-facing 401/403 messages.
+- Added a 10-digit phone login field, pending state, credential feedback, and OWNER-role restriction.
+- Added explicit session checking/authenticated/anonymous/error states. A restored token is checked with `/api/auth/me` before owner billing renders; 401 clears the tab session, and a failed network check keeps protected content hidden with retry/sign-out controls.
+- Kept the existing `sessionStorage` approach and added built-in Node tests for API requests, session-token lifecycle, validation, and role/status handling.
+
+## Architectural Decisions
+- Backend authentication and role authorization were not changed; frontend checks improve navigation and messages only.
+- The auth API helper is React-independent for reuse and is tested with injected `fetch` implementations without live credentials.
+- Node's built-in `node:test` runner avoids adding a frontend test dependency. The tests verify the API client contract, not live browser/backend integration.
+- `sessionStorage` is tab-scoped but remains accessible to same-origin scripts. HttpOnly-cookie migration, refresh tokens, revocation, and a CUSTOMER frontend are deferred; details and alternatives are in ADR-009.
+
+## Verification
+- Frontend auth client tests: 8 tests, 0 failures.
+- Frontend `npm run build`: passed; TypeScript check and Vite production build completed.
+- Frontend `npm run lint`: passed.
+- Backend `./mvnw -Dtest=AuthControllerTest,JwtServiceTest,SecurityErrorDispatchIntegrationTest test`: 16 tests passed, 0 failures/errors.
+- Full backend `./mvnw clean test`: 129 tests passed, 0 failures/errors/skips. The embedded HTTP integration test signs in a synthetic OWNER against the isolated H2 database and validates the JWT using `/api/auth/me`.
+- A separate local browser run used headless Chrome, Vite, Spring Boot, and a uniquely named in-memory H2 database containing only synthetic OWNER/CUSTOMER accounts. Browser tests passed for valid OWNER access, invalid credentials, CUSTOMER rejection, session restoration, sign-out, delayed session validation, an expired signed JWT, network failure, and real backend 403 authorization. No business database or real account was used.
+- The 403 response was verified against the real backend using a synthetic CUSTOMER token; the owner portal rejects CUSTOMER credentials before storing them. The shared API client separately has focused 401/403 message tests. Browser tests used a real frontend/backend connection, not mocked responses.
+- Development uses React StrictMode and performs duplicate auth/session requests during development; the test harness released or failed all matching `/auth/me` requests so this did not leave an artificial request pending.
+
+## Follow-up Browser Verification
+After the implementation milestone, the complete local browser auth workflow was verified again against an isolated H2 database. OWNER login and billing data loading, invalid credentials, CUSTOMER rejection, refresh restoration, hidden protected content during delayed `/auth/me`, sign-out token removal, expired-token rejection, network-failure recovery, and backend CUSTOMER-to-owner 403 all passed. The integrated browser tool was unavailable, so the run used the installed headless Chrome over its local DevTools protocol. Credentials and tokens were synthetic and not reported.
+
 # Milestone 1 — Initialize project
 
 ## Date

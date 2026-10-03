@@ -21,3 +21,7 @@ Format:
 Keep ADRs factual. If the true reason is unknown, mark it as an inference with the label:
 
 "Reason not explicitly recorded; inferred rationale: ..."
+
+Current authentication and frontend decisions:
+- ADR-001 — backend JWT authentication
+- ADR-009 — browser login, tab-scoped token session, and owner workspace protection

@@ -8,6 +8,7 @@ Test frameworks and tools
 - Spring Boot testing support (SpringBootTest, DataJpaTest)
 - MockMvc for controller/integration tests
 - H2 in-memory database for tests (configured in application-dev.properties)
+- The frontend uses Node's built-in `node:test` runner for authentication API client tests; no test dependency is added.
 
 Test types and purpose
 - Repository tests (DataJpaTest): verify correct persistence mappings and repository queries.
@@ -17,11 +18,17 @@ Test types and purpose
 How to run tests
 - In project root:
   cd backend && ./mvnw test
+- Frontend authentication tests: `cd frontend && npm run test` (Node.js v22.6 or newer for built-in TypeScript stripping).
 
 Test status (current)
-- The verified backend suite contains 124 tests.
-- Test result: 124 tests run, 0 failures, 0 errors, and 0 skipped.
-- The suite was verified with `cd backend && ./mvnw clean test`.
+- The latest verified backend suite contains 129 tests.
+- Test result: 129 tests run, 0 failures, 0 errors, and 0 skipped.
+- The suite was verified with `cd backend && ./mvnw clean test` after adding the embedded HTTP authentication flow test.
+- Frontend auth API tests cover login request/response parsing, client-side phone validation, invalid-credential feedback, bearer-token session validation, and distinct 401/403 handling. The test runner uses injected fetch functions; these are unit tests and do not claim live HTTP integration.
+- Frontend production type-check/build and lint are run with `cd frontend && npm run build` and `cd frontend && npm run lint`.
+- Local browser authentication verification used headless Chrome against the actual Vite frontend and Spring Boot backend. The backend used an isolated, uniquely named in-memory H2 database seeded only with synthetic OWNER/CUSTOMER test accounts. Verified owner login and billing data load, invalid credentials, customer rejection without token storage, session restoration, delayed `/auth/me` protected-content gating, sign-out/token removal, a validly signed expired JWT, simulated network failure during session validation, and HTTP 403 for a CUSTOMER bearer on an owner endpoint.
+- The browser run verified HTTP 403 from the backend and the API-client unit tests verify its user-facing permission message; the CUSTOMER owner portal intentionally stops at the role check rather than rendering an owner page that could exercise that message in-context.
+- No real business data was accessed or modified. The local H2 server, Spring Boot process, Vite process, and isolated browser profile are stopped/removed after verification.
 
 New controller tests added for GET /api/owner/customers:
 - ownerCanListCustomers: verifies OWNER can retrieve a JSON array of CustomerResponse

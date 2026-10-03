@@ -17,6 +17,9 @@ REST API (Spring Boot)
 Security / JWT
 - JWT tokens are used to authenticate API requests. JwtAuthenticationFilter validates the token and sets the SecurityContext.
 - Passwords are hashed using BCrypt and stored in the User entity.
+- The React owner workspace authenticates through the same API: it posts phone/password to `/api/auth/login`, holds the access token in tab-scoped `sessionStorage`, and validates restored sessions with `/api/auth/me` before rendering owner content.
+- Authentication states are explicit (`checking`, `authenticated`, `anonymous`, and session-check `error`). The owner billing workspace is gated on a successfully validated `OWNER` role; API authorization remains authoritative.
+- A shared TypeScript auth API module owns login/session response validation, bearer headers, and user-facing 401/403 errors. It has no runtime dependency beyond the browser platform.
 
 Controller layer
 - Purpose: HTTP endpoints, request/response mapping, validation, DTO translation.
@@ -47,3 +50,4 @@ Current vs future
 - Subscription supplies a recurring default; DailyRecord records the actual outcome for a customer/product/date/collection slot. A closed BillingPeriod prevents later DailyRecord writes and provides an informational reconciliation summary. Bill generation snapshots those stored chargeable records into a DRAFT; a separate owner action issues the Bill. Payments and adjustments remain future modules.
 
 Read more: docs/decisions/ADR-008-react-vite-frontend.md, docs/decisions/ADR-001-jwt-authentication.md
+Authentication flow details and alternatives: docs/decisions/ADR-009-frontend-authentication-flow.md

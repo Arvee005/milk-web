@@ -1,5 +1,7 @@
 package com.radhikafarms.milkweb.config;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.radhikafarms.milkweb.auth.JwtService;
 import com.radhikafarms.milkweb.customer.BillingType;
 import com.radhikafarms.milkweb.customer.CustomerService;
@@ -41,6 +43,7 @@ class SecurityErrorDispatchIntegrationTest {
     private String ownerToken;
     private String customerToken;
     private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void createIsolatedTestUsers() {
@@ -96,6 +99,37 @@ class SecurityErrorDispatchIntegrationTest {
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).contains("\"period\":\"2042-03\"");
+    }
+
+    @Test
+    void ownerCanSignInAndValidateSessionOverHttp() throws Exception {
+        String phone = nextPhone();
+        userService.createUser(phone, "integration-test-password", UserRole.OWNER);
+        HttpRequest loginRequest = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/auth/login"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"phone\":\"" + phone + "\",\"password\":\"integration-test-password\"}"
+                ))
+                .build();
+
+        HttpResponse<String> loginResponse = httpClient.send(
+                loginRequest,
+                HttpResponse.BodyHandlers.ofString()
+        );
+
+        assertThat(loginResponse.statusCode()).isEqualTo(200);
+        JsonNode loginBody = objectMapper.readTree(loginResponse.body());
+        String token = loginBody.required("token").asText();
+        assertThat(loginBody.required("role").asText()).isEqualTo("OWNER");
+
+        HttpResponse<String> currentUserResponse = get("/api/auth/me", token);
+
+        assertThat(currentUserResponse.statusCode()).isEqualTo(200);
+        assertThat(currentUserResponse.body())
+                .contains("\"userId\":\"" + loginBody.required("userId").asText() + "\"")
+                .contains("\"phone\":\"" + phone + "\"")
+                .contains("\"role\":\"OWNER\"");
     }
 
     private HttpResponse<String> get(String path, String token) throws Exception {

@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  apiRequest,
+  clearSessionToken,
+  getCurrentUser,
+  isUnauthenticatedError,
+  isOwner,
+  login,
+  readSessionToken,
+  storeSessionToken,
+  type AuthenticatedUser,
+} from './authApi'
 import './App.css'
-
-type LoginResponse = {
-  token: string
-  userId: string
-  role: 'OWNER' | 'CUSTOMER'
-  phone: string
-}
 
 type Customer = {
   id: string
@@ -60,18 +64,19 @@ type Page<T> = {
   number: number
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
-const TOKEN_KEY = 'milk-web-owner-token'
 const PAGE_SIZE = 10
 
-class ApiError extends Error {
-  readonly status: number
+type Session =
+  | { status: 'checking'; token: string; user: null }
+  | { status: 'authenticated'; token: string; user: AuthenticatedUser }
+  | { status: 'anonymous'; token: ''; user: null }
+  | { status: 'error'; token: string; user: null }
 
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-  }
+function initialSession(): Session {
+  const token = readSessionToken()
+  return token
+    ? { status: 'checking', token, user: null }
+    : { status: 'anonymous', token: '', user: null }
 }
 
 function previousMonthInIndia() {
@@ -110,60 +115,9 @@ function formatMonth(period: string) {
     .format(new Date(Date.UTC(year, month - 1, 1)))
 }
 
-function errorMessage(body: unknown, fallback: string) {
-  if (typeof body === 'string' && body.trim() && !body.trimStart().startsWith('<')) {
-    return body
-  }
-  if (typeof body === 'object' && body !== null && 'error' in body) {
-    const message = body.error
-    if (typeof message === 'string') return message
-  }
-  if (typeof body === 'object' && body !== null && 'detail' in body) {
-    const detail = body.detail
-    if (typeof detail === 'string') return detail
-  }
-  return fallback
-}
-
-async function readResponseBody(response: Response): Promise<unknown> {
-  const text = await response.text()
-  if (!text) return null
-  try {
-    return JSON.parse(text) as unknown
-  } catch {
-    return text
-  }
-}
-
-function isLoginResponse(body: unknown): body is LoginResponse {
-  return typeof body === 'object' && body !== null
-    && 'token' in body && typeof body.token === 'string'
-    && 'userId' in body && typeof body.userId === 'string'
-    && 'phone' in body && typeof body.phone === 'string'
-    && 'role' in body && (body.role === 'OWNER' || body.role === 'CUSTOMER')
-}
-
-async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init?.headers,
-    },
-  })
-  const body: unknown = response.status === 204 ? null : await readResponseBody(response)
-  if (!response.ok) {
-    throw new ApiError(errorMessage(body, `Request failed (${response.status})`), response.status)
-  }
-  if (response.status !== 204 && (body === null || typeof body === 'string')) {
-    throw new ApiError('The server returned an invalid response.', response.status)
-  }
-  return body as T
-}
-
 function App() {
-  const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) ?? '')
+  const [session, setSession] = useState<Session>(initialSession)
+  const token = session.token
   const [ownerPhone, setOwnerPhone] = useState('')
   const [password, setPassword] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
@@ -181,8 +135,8 @@ function App() {
   const workspaceRequestId = useRef(0)
 
   const clearSession = useCallback(() => {
-    sessionStorage.removeItem(TOKEN_KEY)
-    setToken('')
+    clearSessionToken()
+    setSession({ status: 'anonymous', token: '', user: null })
     workspaceRequestId.current += 1
     setLoading(false)
     setPeriod(null)
@@ -197,7 +151,7 @@ function App() {
 
   const reportRequestError = useCallback((cause: unknown, fallback: string) => {
     const message = cause instanceof Error ? cause.message : fallback
-    if (cause instanceof ApiError && cause.status === 401) clearSession()
+    if (isUnauthenticatedError(cause)) clearSession()
     setError(message)
   }, [clearSession])
 
@@ -214,9 +168,9 @@ function App() {
     setError('')
     try {
       const [periodResponse, customerResponse, billResponse] = await Promise.all([
-        request<BillingPeriod>(`/owner/billing-periods/${selectedPeriod}`, authToken),
-        request<Customer[]>('/owner/customers', authToken),
-        request<Page<Bill>>(`/owner/bills?period=${selectedPeriod}&page=${selectedPage}&size=${PAGE_SIZE}`, authToken),
+        apiRequest<BillingPeriod>(`/owner/billing-periods/${selectedPeriod}`, authToken),
+        apiRequest<Customer[]>('/owner/customers', authToken),
+        apiRequest<Page<Bill>>(`/owner/bills?period=${selectedPeriod}&page=${selectedPage}&size=${PAGE_SIZE}`, authToken),
       ])
       if (requestId !== workspaceRequestId.current) return
       setPeriod(periodResponse)
@@ -234,56 +188,61 @@ function App() {
   }, [reportRequestError])
 
   useEffect(() => {
-    if (!token) return
+    if (!session.token || session.status !== 'checking') return
     let active = true
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodId)) {
-      setPeriod(null)
-      setBills(null)
-      setError('Choose a valid calendar month.')
-      return () => {
-        active = false
-      }
-    }
-    void request<{ role: string }>('/auth/me', token)
+    void getCurrentUser(session.token)
       .then((user) => {
         if (!active) return
-        if (user.role !== 'OWNER') {
-          clearSession()
-          throw new Error('This workspace is available to owner accounts only')
+        if (!isOwner(user)) {
+          clearSessionToken()
+          setSession({ status: 'anonymous', token: '', user: null })
+          setError('This workspace is for owner accounts. Sign in with an owner account.')
+          return
         }
-        void loadWorkspace(token, periodId, page)
+        setError('')
+        setSession({ status: 'authenticated', token: session.token, user })
       })
       .catch((cause: unknown) => {
         if (!active) return
-        reportRequestError(cause, 'Could not validate your session')
+        if (isUnauthenticatedError(cause)) {
+          clearSessionToken()
+          setSession({ status: 'anonymous', token: '', user: null })
+          setError(cause.message)
+          return
+        }
+        setSession({ status: 'error', token: session.token, user: null })
+        setError(cause instanceof Error ? cause.message : 'Could not validate your session.')
       })
     return () => {
       active = false
     }
-  }, [token, periodId, page, loadWorkspace, clearSession, reportRequestError])
+  }, [session.token, session.status])
+
+  useEffect(() => {
+    if (session.status !== 'authenticated') return
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodId)) {
+      setPeriod(null)
+      setBills(null)
+      setError('Choose a valid calendar month.')
+      return
+    }
+    void loadWorkspace(session.token, periodId, page)
+  }, [session.status, session.token, periodId, page, loadWorkspace])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setLoginLoading(true)
     setError('')
     try {
-      const response = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: ownerPhone, password }),
-      })
-      const body = await readResponseBody(response)
-      if (!response.ok) throw new ApiError(errorMessage(body, 'Sign in failed'), response.status)
-      if (!isLoginResponse(body)) {
-        throw new Error('The server returned an invalid login response.')
-      }
-      const result = body
-      if (result.role !== 'OWNER') throw new Error('This workspace is available to owner accounts only')
-      sessionStorage.setItem(TOKEN_KEY, result.token)
+      const result = await login(ownerPhone.trim(), password)
+      if (!isOwner(result)) throw new Error('This workspace is for owner accounts only.')
+      storeSessionToken(result.token)
       setPassword('')
-      setToken(result.token)
+      setSession({ status: 'checking', token: result.token, user: null })
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Sign in failed')
+      setError(cause instanceof TypeError
+        ? 'Unable to connect to Milk Web. Check your connection and try again.'
+        : cause instanceof Error ? cause.message : 'Sign in failed.')
     } finally {
       setLoginLoading(false)
     }
@@ -300,7 +259,7 @@ function App() {
     setError('')
     setNotice('')
     try {
-      await request<BillingPeriod>(`/owner/billing-periods/${periodId}/close`, token, { method: 'POST' })
+      await apiRequest<BillingPeriod>(`/owner/billing-periods/${periodId}/close`, token, { method: 'POST' })
       setNotice(`${formatMonth(periodId)} has been closed. Daily records can no longer be changed.`)
       await loadWorkspace(token, periodId, page)
     } catch (cause) {
@@ -317,7 +276,7 @@ function App() {
     setError('')
     setNotice('')
     try {
-      const result = await request<Bill>(
+      const result = await apiRequest<Bill>(
         `/owner/billing-periods/${periodId}/bills/${customerId}`,
         token,
         { method: 'POST' },
@@ -339,7 +298,7 @@ function App() {
     setError('')
     setNotice('')
     try {
-      const issued = await request<Bill>(`/owner/bills/${bill.id}/issue`, token, { method: 'POST' })
+      const issued = await apiRequest<Bill>(`/owner/bills/${bill.id}/issue`, token, { method: 'POST' })
       setSelectedBill(issued)
       setNotice(`Bill for ${issued.customerName} has been issued.`)
       await loadWorkspace(token, periodId, page)
@@ -350,7 +309,28 @@ function App() {
     }
   }
 
-  if (!token) {
+  if (session.status === 'checking') {
+    return <main className="session-status" role="status">Checking your session…</main>
+  }
+
+  if (session.status === 'error') {
+    return (
+      <main className="session-status">
+        <section className="session-error">
+          <p className="eyebrow">SESSION CHECK</p>
+          <h1>We could not verify your session.</h1>
+          <p className="alert error-alert" role="alert">{error}</p>
+          <button className="secondary-button" onClick={() => {
+            setError('')
+            setSession({ status: 'checking', token: session.token, user: null })
+          }}>Retry session check</button>
+          <button className="signout-button" onClick={signOut}>Sign out</button>
+        </section>
+      </main>
+    )
+  }
+
+  if (session.status === 'anonymous') {
     return (
       <main className="login-page">
         <section className="login-card">
@@ -360,13 +340,16 @@ function App() {
           <p className="login-copy">Sign in to reconcile a month, prepare customer bills, and issue finalized statements.</p>
           <form onSubmit={signIn} className="login-form">
             <label htmlFor="owner-phone">Phone number</label>
-            <input id="owner-phone" autoComplete="username" value={ownerPhone}
-              onChange={(event) => setOwnerPhone(event.target.value)} required />
+            <input id="owner-phone" type="tel" inputMode="numeric" autoComplete="username"
+              pattern="[0-9]{10}" maxLength={10} value={ownerPhone}
+              onChange={(event) => setOwnerPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
+              aria-describedby="phone-help" required />
+            <span id="phone-help" className="form-hint">Enter the 10-digit phone number on your account.</span>
             <label htmlFor="owner-password">Password</label>
             <input id="owner-password" type="password" autoComplete="current-password" value={password}
               onChange={(event) => setPassword(event.target.value)} required />
             {error && <p className="alert error-alert" role="alert">{error}</p>}
-            <button className="primary-button full-button" disabled={loginLoading}>
+            <button className="primary-button full-button" disabled={loginLoading} aria-busy={loginLoading}>
               {loginLoading ? 'Signing in…' : 'Sign in as owner'}
             </button>
           </form>

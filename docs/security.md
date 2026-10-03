@@ -22,6 +22,15 @@ Authorization
   - /api/customer/** requires ROLE_CUSTOMER
   - POST /api/auth/login and /actuator/health are public
 - Controllers use @PreAuthorize where needed and rely on URL-based restrictions.
+- The browser owner workspace checks `/api/auth/me` before displaying protected billing content and accepts only the OWNER role. This is a usability boundary, not an authorization control; every protected API still enforces its role on the backend.
+
+Frontend session handling (IMPLEMENTED)
+- Login sends the entered 10-digit phone and password to `POST /api/auth/login`; the password is not persisted.
+- The returned bearer token is stored in `sessionStorage` for the current tab, then `/api/auth/me` validates the token and persisted user role before rendering the owner workspace.
+- A 401 clears the stored session and returns to sign-in with an expired-session message. A 403 displays a permission message without treating the still-authenticated identity as expired.
+- Customer credentials are not retained by the owner portal. A CUSTOMER response is rejected before storing its token.
+- `sessionStorage` was retained instead of `localStorage` so closing the tab ends browser persistence. It is still readable by same-origin JavaScript and therefore does not eliminate XSS risk. HttpOnly cookies would reduce script access but require a different backend cookie/CSRF design and are not introduced here.
+- Refresh tokens, revocation, and customer-facing frontend pages are not implemented.
 
 Product Management (IMPLEMENTED)
 - OWNER product APIs are under `/api/owner/products` and use the existing `/api/owner/**` ROLE_OWNER restriction.

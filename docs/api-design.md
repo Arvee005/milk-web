@@ -16,6 +16,12 @@ Existing endpoints (verified in code)
 - Controller: AuthController.me
 - Returns: current authenticated user info (userId, phone, role)
 - Security: authenticated
+- Browser owner flow sends the JWT in the Authorization Bearer header and verifies this response before rendering the owner workspace.
+
+Frontend authentication behavior
+- A CUSTOMER may successfully authenticate via `POST /api/auth/login`, but the owner portal does not retain that token or render owner billing. Customer-facing login pages are not implemented.
+- The browser reports 401 as invalid login credentials during sign-in or an expired session for later API requests. It reports 403 as an authorization failure and does not treat it as an expired identity.
+- These client messages do not change backend authorization: OWNER/CUSTOMER role checks remain enforced by Spring Security.
 
 3) GET /api/auth/owner-check
 - Controller: AuthController.ownerCheck
