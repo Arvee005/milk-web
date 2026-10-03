@@ -4,12 +4,13 @@ import {
   clearSessionToken,
   getCurrentUser,
   isUnauthenticatedError,
-  isOwner,
   login,
   readSessionToken,
   storeSessionToken,
   type AuthenticatedUser,
+  workspaceForRole,
 } from './authApi'
+import CustomerWorkspace from './CustomerWorkspace'
 import './App.css'
 
 type Customer = {
@@ -118,7 +119,7 @@ function formatMonth(period: string) {
 function App() {
   const [session, setSession] = useState<Session>(initialSession)
   const token = session.token
-  const [ownerPhone, setOwnerPhone] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -193,12 +194,6 @@ function App() {
     void getCurrentUser(session.token)
       .then((user) => {
         if (!active) return
-        if (!isOwner(user)) {
-          clearSessionToken()
-          setSession({ status: 'anonymous', token: '', user: null })
-          setError('This workspace is for owner accounts. Sign in with an owner account.')
-          return
-        }
         setError('')
         setSession({ status: 'authenticated', token: session.token, user })
       })
@@ -219,7 +214,7 @@ function App() {
   }, [session.token, session.status])
 
   useEffect(() => {
-    if (session.status !== 'authenticated') return
+    if (session.status !== 'authenticated' || session.user.role !== 'OWNER') return
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodId)) {
       setPeriod(null)
       setBills(null)
@@ -227,15 +222,14 @@ function App() {
       return
     }
     void loadWorkspace(session.token, periodId, page)
-  }, [session.status, session.token, periodId, page, loadWorkspace])
+  }, [session.status, session.token, session.user?.role, periodId, page, loadWorkspace])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setLoginLoading(true)
     setError('')
     try {
-      const result = await login(ownerPhone.trim(), password)
-      if (!isOwner(result)) throw new Error('This workspace is for owner accounts only.')
+      const result = await login(phone.trim(), password)
       storeSessionToken(result.token)
       setPassword('')
       setSession({ status: 'checking', token: result.token, user: null })
@@ -247,6 +241,11 @@ function App() {
       setLoginLoading(false)
     }
   }
+
+  const expireSession = useCallback(() => {
+    clearSession()
+    setError('Your session has expired. Please sign in again.')
+  }, [clearSession])
 
   function signOut() {
     clearSession()
@@ -335,22 +334,22 @@ function App() {
       <main className="login-page">
         <section className="login-card">
           <div className="brand-mark" aria-hidden="true">m</div>
-          <p className="eyebrow">MILK WEB · OWNER PORTAL</p>
-          <h1>Good business starts with a clear account.</h1>
-          <p className="login-copy">Sign in to reconcile a month, prepare customer bills, and issue finalized statements.</p>
+          <p className="eyebrow">MILK WEB · SECURE ACCOUNT</p>
+          <h1>Your dairy account, in one place.</h1>
+          <p className="login-copy">Sign in with your phone number and password. We’ll take you to the right workspace.</p>
           <form onSubmit={signIn} className="login-form">
-            <label htmlFor="owner-phone">Phone number</label>
-            <input id="owner-phone" type="tel" inputMode="numeric" autoComplete="username"
-              pattern="[0-9]{10}" maxLength={10} value={ownerPhone}
-              onChange={(event) => setOwnerPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
+            <label htmlFor="account-phone">Phone number</label>
+            <input id="account-phone" type="tel" inputMode="numeric" autoComplete="username"
+              pattern="[0-9]{10}" maxLength={10} value={phone}
+              onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
               aria-describedby="phone-help" required />
             <span id="phone-help" className="form-hint">Enter the 10-digit phone number on your account.</span>
-            <label htmlFor="owner-password">Password</label>
-            <input id="owner-password" type="password" autoComplete="current-password" value={password}
+            <label htmlFor="account-password">Password</label>
+            <input id="account-password" type="password" autoComplete="current-password" value={password}
               onChange={(event) => setPassword(event.target.value)} required />
             {error && <p className="alert error-alert" role="alert">{error}</p>}
             <button className="primary-button full-button" disabled={loginLoading} aria-busy={loginLoading}>
-              {loginLoading ? 'Signing in…' : 'Sign in as owner'}
+              {loginLoading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
           <p className="privacy-note">Your session is kept only in this browser tab.</p>
@@ -362,6 +361,16 @@ function App() {
           <div className="art-caption"><span>01</span> A simpler way to keep every litre accounted for.</div>
         </div>
       </main>
+    )
+  }
+
+  if (workspaceForRole(session.user.role) === 'customer') {
+    return (
+      <CustomerWorkspace
+        token={session.token}
+        onSignOut={signOut}
+        onSessionExpired={expireSession}
+      />
     )
   }
 

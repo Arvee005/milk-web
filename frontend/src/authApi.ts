@@ -17,6 +17,10 @@ export function isOwner(user: Pick<AuthenticatedUser, 'role'>) {
   return user.role === 'OWNER'
 }
 
+export function workspaceForRole(role: UserRole): 'owner' | 'customer' {
+  return role === 'OWNER' ? 'owner' : 'customer'
+}
+
 export const TOKEN_KEY = 'milk-web-owner-token'
 
 type SessionStoragePort = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>

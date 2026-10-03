@@ -11,6 +11,7 @@ import {
   login,
   readSessionToken,
   storeSessionToken,
+  workspaceForRole,
 } from './authApi.ts'
 
 function jsonResponse(body: unknown, status = 200) {
@@ -24,6 +25,53 @@ describe('authentication API client', () => {
   it('allows only OWNER identities into the owner workspace', () => {
     assert.equal(isOwner({ role: 'OWNER' }), true)
     assert.equal(isOwner({ role: 'CUSTOMER' }), false)
+  })
+
+  it('routes only the role returned by current-user validation to its workspace', async () => {
+    const verifiedUsers = [
+      { userId: 'owner-id', phone: '9876543210', role: 'OWNER' },
+      { userId: 'customer-id', phone: '9876543211', role: 'CUSTOMER' },
+    ] as const
+    const fetcher: typeof fetch = async (_input, init) => {
+      const token = new Headers(init?.headers).get('Authorization')
+      const user = verifiedUsers.find((candidate) => candidate.userId === (token === 'Bearer owner-token'
+        ? 'owner-id'
+        : 'customer-id'))
+      return jsonResponse(user)
+    }
+
+    const owner = await getCurrentUser('owner-token', { apiBase: '/api', fetcher })
+    const customer = await getCurrentUser('customer-token', { apiBase: '/api', fetcher })
+    assert.equal(workspaceForRole(owner.role), 'owner')
+    assert.equal(workspaceForRole(customer.role), 'customer')
+  })
+
+  it('does not use a stale login-response role to select the workspace', async () => {
+    const fetcher: typeof fetch = async (input, init) => {
+      if (String(input).endsWith('/auth/login')) {
+        return jsonResponse({
+          token: 'verified-customer-token',
+          userId: 'stale-owner-id',
+          phone: '9876543210',
+          role: 'OWNER',
+        })
+      }
+      assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer verified-customer-token')
+      return jsonResponse({
+        userId: 'current-customer-id',
+        phone: '9876543210',
+        role: 'CUSTOMER',
+      })
+    }
+
+    const loginResponse = await login('9876543210', 'example-password', {
+      apiBase: '/api',
+      fetcher,
+    })
+    const currentUser = await getCurrentUser(loginResponse.token, { apiBase: '/api', fetcher })
+
+    assert.equal(workspaceForRole(loginResponse.role), 'owner')
+    assert.equal(workspaceForRole(currentUser.role), 'customer')
   })
 
   it('stores and clears the session token under the tab-scoped key', () => {
@@ -103,6 +151,19 @@ describe('authentication API client', () => {
     )
   })
 
+  it('accepts a valid CUSTOMER login response without treating it as workspace authorization', async () => {
+    const fetcher: typeof fetch = async () => jsonResponse({
+      token: 'customer-token',
+      userId: 'customer-id',
+      phone: '9876543211',
+      role: 'CUSTOMER',
+    })
+
+    const result = await login('9876543211', 'example-password', { fetcher })
+    assert.equal(result.role, 'CUSTOMER')
+    assert.equal(workspaceForRole(result.role), 'customer')
+  })
+
   it('attaches the bearer token when validating the current user', async () => {
     let requestUrl = ''
     let authorization = ''
@@ -148,5 +209,13 @@ describe('authentication API client', () => {
         && error.status === 401
         && error.message.includes('session has expired'),
     )
+  })
+
+  it('surfaces network failures during current-user validation', async () => {
+    const fetcher: typeof fetch = async () => {
+      throw new TypeError('Failed to fetch')
+    }
+
+    await assert.rejects(getCurrentUser('test-token', { fetcher }), TypeError)
   })
 })

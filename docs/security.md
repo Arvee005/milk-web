@@ -22,15 +22,15 @@ Authorization
   - /api/customer/** requires ROLE_CUSTOMER
   - POST /api/auth/login and /actuator/health are public
 - Controllers use @PreAuthorize where needed and rely on URL-based restrictions.
-- The browser owner workspace checks `/api/auth/me` before displaying protected billing content and accepts only the OWNER role. This is a usability boundary, not an authorization control; every protected API still enforces its role on the backend.
+- The browser checks `/api/auth/me` before displaying either protected workspace and selects OWNER/CUSTOMER UI only from the verified response role. This is a usability boundary, not an authorization control; every protected API still enforces its role on the backend.
 
 Frontend session handling (IMPLEMENTED)
 - Login sends the entered 10-digit phone and password to `POST /api/auth/login`; the password is not persisted.
-- The returned bearer token is stored in `sessionStorage` for the current tab, then `/api/auth/me` validates the token and persisted user role before rendering the owner workspace.
+- The returned bearer token is stored in `sessionStorage` for the current tab, then `/api/auth/me` validates the token and persisted user role before rendering the owner or customer workspace.
 - A 401 clears the stored session and returns to sign-in with an expired-session message. A 403 displays a permission message without treating the still-authenticated identity as expired.
-- Customer credentials are not retained by the owner portal. A CUSTOMER response is rejected before storing its token.
+- OWNER and CUSTOMER sessions use the same token storage lifecycle. Workspace selection uses `/api/auth/me`, not the role from the login response; a customer token cannot render the owner workspace, and an owner token cannot render the customer workspace.
 - `sessionStorage` was retained instead of `localStorage` so closing the tab ends browser persistence. It is still readable by same-origin JavaScript and therefore does not eliminate XSS risk. HttpOnly cookies would reduce script access but require a different backend cookie/CSRF design and are not introduced here.
-- Refresh tokens, revocation, and customer-facing frontend pages are not implemented.
+- Refresh tokens and revocation are not implemented. The customer UI exposes the authenticated profile, today's and historical DailyRecords, read-only subscriptions, and issued bills. Payment history and balances are not available.
 
 Product Management (IMPLEMENTED)
 - OWNER product APIs are under `/api/owner/products` and use the existing `/api/owner/**` ROLE_OWNER restriction.
@@ -42,20 +42,41 @@ Subscription Management (IMPLEMENTED)
 - OWNER subscription endpoints use the existing `/api/owner/**` ROLE_OWNER rule; SecurityConfig was not changed.
 - Unauthenticated requests receive 401; CUSTOMER requests receive 403.
 - Request/response DTOs expose related Customer/Product UUIDs only and do not serialize JPA relationships or authentication data.
-- Customer-facing subscription APIs are PLANNED / NOT YET IMPLEMENTED.
+- `GET /api/customer/subscriptions` is CUSTOMER-only and read-only. It derives the customer from the authenticated User ID and every repository query is constrained to that Customer.
+- The customer API rejects a supplied `customerId`; it cannot be used to select or broaden access to another account. The DTO includes only subscription and product display fields, status, inclusive dates, and derived date/effectiveness flags.
+- `effectiveToday` requires both ACTIVE status and an inclusive date range containing the configured India business date. Status and dates are returned separately so PAUSED/CANCELLED in-range records and ACTIVE out-of-range records are not incorrectly shown as currently effective.
+- OWNER and unauthenticated callers remain rejected by the existing `/api/customer/**` role rule. Customer-facing subscription mutation APIs do not exist.
+
+Bill access (IMPLEMENTED)
+- `GET /api/customer/bills` requires CUSTOMER via the existing `/api/customer/**` security rule. The service resolves the Customer through the authenticated User ID and constrains both page and line-item queries to that Customer.
+- The endpoint rejects any supplied `customerId`; client input cannot select another account's data. OWNER requests receive 403 and anonymous requests receive 401.
+- Only `ISSUED` bills with `issuedAt` are returned. DRAFT bills are excluded regardless of whether their billing period is closed. This uses the existing bill lifecycle rather than introducing a new visibility state.
+- Customer DTOs omit customer PII snapshots, owner/issuer identifiers, JPA relations, bill-line IDs, and source DailyRecord IDs. Only the bill summary and immutable line values needed for customer review are exposed.
+- `ISSUED` is not a paid/unpaid signal. No payment or balance data is returned or inferred.
+
+Payment and balance (DESIGN ONLY; NOT IMPLEMENTED)
+- No endpoint currently records payments, allocations, adjustments, or returns a customer balance. The OWNER/CUSTOMER rules below are proposals, not active routes.
+- Proposed money-changing operations (receipt, allocation/release, adjustment) require OWNER and derive the actor from the authenticated principal. Client-supplied `recordedBy`, customer identity, or balance is never trusted.
+- Proposed customer reads derive Customer through authenticated User ID and constrain every account, bill, allocation, and statement query to that Customer. A supplied customer ID must be rejected; an out-of-scope bill ID must not disclose another account.
+- Proposed receipts, allocations, and adjustments are append-only; corrections require attributable compensating events and reasons. Required idempotency keys protect retried writes. Database transactions and locking must prevent concurrent over-allocation.
+- `PREPAID` does not currently represent a payment or credit workflow. Do not infer payment, balance, or service eligibility from that enum.
+- Currency is not stored on current bills. Confirm currency and historical interpretation before enabling financial writes; do not backfill a guessed INR code.
+- See [Payment and Balance Domain Design](./payment-domain-design.md) and [ADR-010](./decisions/ADR-010-customer-financial-ledger.md) for proposed roles, data isolation, audit, concurrency, and unresolved policy. No payment-security implementation or tests are claimed.
 
 DailyRecord Management (IMPLEMENTED)
 - OWNER DailyRecord APIs use the existing `/api/owner/**` ROLE_OWNER rule; SecurityConfig was not modified.
 - Unauthenticated requests receive 401; CUSTOMER requests receive 403.
 - DTOs expose related resource IDs and recorded values only; they do not expose nested entities or authentication information.
-- Customer-facing DailyRecord APIs are PLANNED / NOT YET IMPLEMENTED.
+- `GET /api/customer/daily-records` is CUSTOMER-only and read-only. It derives the Customer from the authenticated User ID and constrains every query by that Customer ID; it rejects `customerId` query parameters rather than using them as filters.
+- The customer response DTO contains only record ID/date/slot, product name/unit, quantities, historical price snapshot, amount, and status. Pagination is capped at 100; date ranges require both endpoints and are capped at 366 calendar dates.
+- Owner daily-record create/list/detail/update endpoints remain unchanged and OWNER-only.
 
 Billing and Period Management (IMPLEMENTED)
 - Owner period inspection and close endpoints use the existing `/api/owner/**` ROLE_OWNER rule; SecurityConfig was not modified.
 - Unauthenticated requests receive 401; CUSTOMER requests receive 403.
 - Responses expose only period state, dates, aggregate count/amount, timestamps, and the closing User UUID; no User or authentication data is serialized.
 - Bill generation, retrieval, and issuing use the same `/api/owner/**` ROLE_OWNER rule. DTOs expose historical customer and bill-line snapshots but no nested User data or authentication fields.
-- Customer-facing bill APIs are PLANNED / NOT YET IMPLEMENTED.
+- Customer bill reads are available only through the CUSTOMER-scoped `GET /api/customer/bills` described above; the owner generation/retrieval/issue endpoints remain OWNER-only.
 
 Secrets and configuration
 - JWT secret is read from configuration (milkweb.jwt.secret). Defaults should not be committed. For dev, application-dev.properties contains a dev-only secret.

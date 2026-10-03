@@ -19,7 +19,8 @@ Existing endpoints (verified in code)
 - Browser owner flow sends the JWT in the Authorization Bearer header and verifies this response before rendering the owner workspace.
 
 Frontend authentication behavior
-- A CUSTOMER may successfully authenticate via `POST /api/auth/login`, but the owner portal does not retain that token or render owner billing. Customer-facing login pages are not implemented.
+- The shared frontend accepts OWNER and CUSTOMER credentials through `POST /api/auth/login`, then calls `GET /api/auth/me` before routing to either workspace. The login response role is not used to authorize or select the workspace.
+- The owner workspace is rendered only for a validated OWNER. The customer shell is rendered only for a validated CUSTOMER and uses `GET /api/customer/me` for the profile view.
 - The browser reports 401 as invalid login credentials during sign-in or an expired session for later API requests. It reports 403 as an authorization failure and does not treat it as an expired identity.
 - These client messages do not change backend authorization: OWNER/CUSTOMER role checks remain enforced by Spring Security.
 
@@ -52,6 +53,25 @@ Frontend authentication behavior
   - Service finds Customer by userId; if not found -> 404 Not Found
   - Returns CustomerResponse
 - Errors: 401 unauthorized if no token, 404 if no Customer record for user
+
+Customer-facing DailyRecord history, subscriptions, and issued bills are implemented at `GET /api/customer/daily-records`, `/api/customer/subscriptions`, and `/api/customer/bills`. Payment history and balance APIs are not implemented; owner APIs below remain OWNER-only and must not be reused as customer endpoints. See [Customer Dashboard: Backend and API Gap Analysis](./customer-dashboard-plan.md) for current coverage and remaining work.
+
+## Customer DailyRecord History (IMPLEMENTED)
+
+`GET /api/customer/daily-records`
+- Authorization: CUSTOMER role under `/api/customer/**`; unauthenticated requests receive 401 and non-CUSTOMER roles receive 403.
+- Identity/data isolation: the controller takes the user ID from `@AuthenticationPrincipal`, resolves the linked Customer by `user_id`, and invokes a repository query with that mandatory customer ID predicate. A caller-supplied `customerId` query parameter is rejected with 400; it is never used to select records.
+- Optional filters:
+  - `recordDate=YYYY-MM-DD`, or
+  - both `fromDate=YYYY-MM-DD` and `toDate=YYYY-MM-DD`, inclusive, with a maximum span of 366 calendar dates,
+  - optional `slot=MORNING|EVENING`,
+  - optional `status=COLLECTED|EXTRA|SKIPPED|PAUSED`.
+- A specific date cannot be combined with range filters. A range requires both dates and `fromDate <= toDate`. Invalid date, slot, or status values return 400.
+- Pagination: `page` defaults to 0 and must be nonnegative; `size` defaults to 50 and is limited to 1-100. Results are ordered by `recordDate DESC`, `slot ASC`, then `id ASC`. The query eagerly loads Product for response labels.
+- Response: stable `CustomerDailyRecordPageResponse` containing `content`, `number`, `size`, `totalElements`, and `totalPages`. Each item is a `CustomerDailyRecordResponse` shaped as `{ id, recordDate, slot, productName, productUnit, quantity, unitPriceSnapshot, amount, status }`. It does not expose Customer IDs or JPA entity relationships.
+- `unitPriceSnapshot` and `amount` are the persisted historical values. `productName` and `productUnit` come from the linked current Product because DailyRecord does not snapshot those labels; later owner catalog label edits can change the label shown for historical records.
+- This is read-only. DailyRecord status/amount rules and historical price snapshots remain those of the existing owner-managed DailyRecord model.
+- The frontend overview requests today's records; absence of a slot row is rendered as “No record available for this slot,” not as SKIPPED. The Records view submits an inclusive date range with optional slot/status filters and bounded pagination.
 
 7) GET /api/owner/customers/{customerId}
 - Controller: CustomerController.getCustomerById (implemented in milestone 4A)
@@ -120,7 +140,7 @@ Validation: names are non-blank and at most 100 characters; descriptions are opt
 
 Product names have a database uniqueness constraint. Matching semantics follow the database collation; case-insensitive uniqueness is not implemented.
 
-`Product.price` is the current catalog price only. **PLANNED / NOT YET IMPLEMENTED:** future `DailyRecord` entries must snapshot the applicable unit price so later Product price changes do not change historical transactions or bills.
+`Product.price` is the current catalog price only. Implemented DailyRecord creation stores the applicable unit price snapshot and calculates the record amount from that snapshot, so later Product price changes do not change historical transactions or bills. The owner supplies the snapshot for a new chargeable record; it is not automatically copied from the current catalog price.
 
 There is no delete endpoint. Inactive products remain visible to OWNERs. Customer product browsing is **PLANNED / NOT YET IMPLEMENTED** and is not part of this module.
 
@@ -156,7 +176,26 @@ Only ACTIVE subscriptions participate in overlap checks. For the same Customer a
 
 `Subscription.defaultQuantity` is a recurring default only. Implemented DailyRecord entries capture actual supply and snapshot their applied unit price; neither Product price changes nor Subscription edits may recalculate historical DailyRecords or Bills.
 
-**PLANNED / NOT YET IMPLEMENTED:** customer-facing subscription APIs and Payment. BillingPeriod inspection/closing and Bill generation are implemented below. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** database-level protection against concurrent overlapping writes for PostgreSQL.
+5) `GET /api/customer/subscriptions`
+- CUSTOMER-only, read-only endpoint. The Customer is resolved from the authenticated User ID; no customer identifier is accepted for selection. Supplying `customerId` is rejected with 400.
+- Returns a JSON array of `CustomerSubscriptionResponse`: `id`, `productName`, `productUnit`, `defaultQuantity`, `status`, `startDate`, nullable `endDate`, `effectiveToday`, and `periodState`.
+- Results are scoped to that Customer and ordered by descending start date. Product name/unit are fetched with the associated Product and no JPA entities or Customer/Product IDs are serialized.
+- `periodState` describes dates only: UPCOMING when `startDate` is after the India business date, ENDED when the inclusive `endDate` is before it, otherwise IN_PERIOD. Null `endDate` means no end bound.
+- `effectiveToday` is true only when status is ACTIVE and the inclusive dates contain the India business date. PAUSED/CANCELLED subscriptions can be within their dates but are not effective; ACTIVE subscriptions outside their dates are not effective either.
+- Success: 200 OK, including an empty array when no subscriptions exist. Errors: 400 if `customerId` is supplied or malformed, 401 unauthenticated, 403 non-CUSTOMER.
+- Default quantity is a plan, not evidence of actual collection; use customer DailyRecords for recorded supply.
+
+BillingPeriod inspection/closing and Bill generation are implemented below. Application-level overlap checking is implemented. **PLANNED / NOT YET IMPLEMENTED:** Payment and database-level protection against concurrent overlapping writes for PostgreSQL.
+
+6) `GET /api/customer/bills`
+- CUSTOMER-only, read-only endpoint. The Customer is resolved from the authenticated User ID; supplied `customerId` is rejected with 400 and never selects records.
+- Returns only bills with `status = ISSUED` and non-null `issuedAt`. DRAFT bills are excluded. The existing Bill database check requires issue metadata for ISSUED rows and no issue metadata for DRAFT rows.
+- Request parameters: `page` (default 0) and `size` (default 20, range 1-100). Results use stable `createdAt DESC, id ASC` ordering and an explicit `CustomerBillPageResponse` page envelope.
+- `CustomerBillResponse` contains bill ID, billing period (`YYYY-MM`), inclusive period dates, total amount, ISSUED status, issue timestamp, and line summaries (record date, slot, description snapshot, quantity, unit-price snapshot, and amount). It excludes customer PII, issuer identity, bill-line IDs, and DailyRecord IDs.
+- Currency is not stored on Bill; the API does not claim a currency and the UI renders the numeric amounts without a currency symbol.
+- Page metadata includes `content`, `number`, `size`, `totalElements`, and `totalPages`. Empty results return an empty page. Errors: 400 invalid page/size or supplied customerId, 401 unauthenticated, 403 non-CUSTOMER.
+- Each bill page is loaded first, then its lines are batch-loaded for only those visible bill IDs; this avoids collection-fetch pagination and per-bill line queries.
+- ISSUED means the owner explicitly issued/finalized the bill. It does not mean paid. Payment status is unavailable because no payment ledger or allocation model exists.
 
 ## DailyRecord Management (IMPLEMENTED)
 
@@ -222,7 +261,7 @@ Errors: 400 malformed/impossible period, invalid UUID, or invalid pagination; 40
 
 DailyRecord writes initialize an OPEN period row if needed and acquire the same database row lock held during closing. No DailyRecord may be created or updated after closure. Same-day corrections and backdated inserts remain permitted while the relevant period is OPEN. Read-only inspection does not create period rows. Initializing a period row uses a separate transaction and a named unique key to safely resolve concurrent first-time creation.
 
-No customer-eligibility snapshot is currently captured when a period closes. Accordingly, generation checks the customer's current `MONTHLY` billing type; customer status is not an additional exclusion when qualifying persisted chargeable records exist. Currency is not stored pending explicit INR confirmation. Payment, credit/debit allocation, late charges, and BalanceAdjustment remain **PLANNED / NOT YET IMPLEMENTED**. H2 tests do not prove PostgreSQL concurrency safety.
+No customer-eligibility snapshot is currently captured when a period closes. Accordingly, generation checks the customer's current `MONTHLY` billing type; customer status is not an additional exclusion when qualifying persisted chargeable records exist. Currency is not stored; INR is an unconfirmed assumption only. Payment, credit/debit allocation, late charges, and BalanceAdjustment remain **PLANNED / NOT YET IMPLEMENTED**. H2 tests do not prove PostgreSQL concurrency safety.
 
 Error handling
 - Validation errors return 400 with a field error message (handled by ControllerAdvice in CustomerExceptionHandler)
@@ -236,3 +275,24 @@ Security considerations
 Notes
 - DTOs are used to decouple API from JPA entities (see ADR-006)
 - Controller paths align with role-based requirements defined in SecurityConfig
+
+## Payment and Balance API Design (PROPOSED; NOT IMPLEMENTED)
+
+No payment, allocation, adjustment, account, or balance endpoint currently exists. The following contracts are design proposals only; details and unresolved policy are in [Payment and Balance Domain Design](./payment-domain-design.md) and [ADR-010](./decisions/ADR-010-customer-financial-ledger.md).
+
+Recommended owner operations, all under `/api/owner/**` and OWNER-only:
+
+- `POST /api/owner/customers/{customerId}/payments` records a positive, confirmed receipt with required `Idempotency-Key`; optional explicit allocations may target only the same customer's ISSUED bills. Unallocated remainder remains account credit.
+- `POST /api/owner/payments/{paymentId}/allocations` explicitly allocates previously unallocated funds. Allocation releases/reallocation require an approved correction policy and append-only compensating events.
+- `POST /api/owner/customers/{customerId}/balance-adjustments` records a reasoned DEBIT or CREDIT, with optional same-customer issued-bill scope. An adjustment is not money received.
+- `GET /api/owner/customers/{customerId}/account` and `/transactions` provide a derived summary and bounded, stable-sorted statement.
+
+Recommended CUSTOMER-only, read-only operations:
+
+- `GET /api/customer/account`
+- `GET /api/customer/transactions?page=0&size=20`
+- `GET /api/customer/bills/{billId}` for an ownership-scoped balance/allocation detail, if a separate detail route is justified. The existing customer bill list does not expose payment status or balance.
+
+Customer endpoints must resolve Customer from authenticated User ID and constrain each query by that Customer. Do not accept customer ID input as authorization. Reject unknown, non-issued, cross-customer, over-allocated, or currency-mismatched bill operations; use bounded pagination and stable sort keys. A persisted idempotency key protects retries; a reused key with a different payload conflicts. Exact request/response fields, validation, error mappings, currency prerequisites, actor attribution, and transaction requirements remain proposed, not implemented.
+
+Never infer `paid`, `unpaid`, or outstanding balance from ISSUED status or bill total alone. Currency and existing-bill interpretation must be explicitly confirmed before any financial API is implemented.

@@ -114,6 +114,21 @@ public class DailyRecordService {
                 customerId, productId, recordDate, fromDate, toDate, slot, status, pageable);
     }
 
+    public Page<DailyRecord> listCustomerDailyRecords(
+            UUID userId,
+            LocalDate recordDate,
+            LocalDate fromDate,
+            LocalDate toDate,
+            DailyRecordSlot slot,
+            DailyRecordStatus status,
+            Pageable pageable
+    ) {
+        Customer customer = customerRepository.findByUserId(userId)
+                .orElseThrow(() -> new CustomerNotFoundException(userId));
+        return dailyRecordRepository.findCustomerRecords(
+                customer.getId(), recordDate, fromDate, toDate, slot, status, pageable);
+    }
+
     @Transactional
     public DailyRecord updateDailyRecord(UUID dailyRecordId, OwnerUpdateDailyRecordRequest request) {
         DailyRecord record = dailyRecordRepository.findById(dailyRecordId)

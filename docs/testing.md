@@ -7,8 +7,8 @@ Test frameworks and tools
 - JUnit (via Spring Boot test starters)
 - Spring Boot testing support (SpringBootTest, DataJpaTest)
 - MockMvc for controller/integration tests
-- H2 in-memory database for tests (configured in application-dev.properties)
-- The frontend uses Node's built-in `node:test` runner for authentication API client tests; no test dependency is added.
+- H2 in-memory database for tests (configured in `src/test/resources/application.properties`; the development profile also uses H2)
+- The frontend uses Node's built-in `node:test` runner for authentication and customer API/view-model tests. React component tests use Testing Library with jsdom, and `tsx` loads the JSX test entry point.
 
 Test types and purpose
 - Repository tests (DataJpaTest): verify correct persistence mappings and repository queries.
@@ -18,13 +18,49 @@ Test types and purpose
 How to run tests
 - In project root:
   cd backend && ./mvnw test
-- Frontend authentication tests: `cd frontend && npm run test` (Node.js v22.6 or newer for built-in TypeScript stripping).
+- Frontend API and React component tests: `cd frontend && npm test` (Node.js v22.6 or newer for built-in TypeScript stripping).
+- Frontend production build and lint: `cd frontend && npm run build` and `cd frontend && npm run lint`.
 
 Test status (current)
-- The latest verified backend suite contains 129 tests.
-- Test result: 129 tests run, 0 failures, 0 errors, and 0 skipped.
-- The suite was verified with `cd backend && ./mvnw clean test` after adding the embedded HTTP authentication flow test.
-- Frontend auth API tests cover login request/response parsing, client-side phone validation, invalid-credential feedback, bearer-token session validation, and distinct 401/403 handling. The test runner uses injected fetch functions; these are unit tests and do not claim live HTTP integration.
+- The full backend suite now contains 138 tests.
+- Test result: 138 tests run, 0 failures, 0 errors, and 0 skipped (`cd backend && ./mvnw clean test`).
+- The focused DailyRecord controller/service run contained 30 tests, all passing.
+- Frontend test result before customer-bills component coverage: 34 API/view-model tests passed. Current Phase 6.2 validation adds six DOM-backed customer bills component tests, for 40 frontend tests total.
+- Frontend auth tests cover OWNER/CUSTOMER role routing from `/api/auth/me`, login, restoration-related API behavior, invalid credentials, token handling, and 401/403/network distinctions. Customer profile, DailyRecord, subscription, and bill API tests cover request URL/filters, no customer ID in requests, response validation, status/date labels, missing-slot representation, filter validation, pagination state, loading/empty/error handling, grouping, retry, and auth/network failures. These API tests use injected fetch functions and pure view models, not live HTTP.
+- Customer bills component tests render the customer workspace in jsdom with synthetic API responses. They verify issued-bill period/total display, expandable line summaries, empty/loading/error/retry states, pagination requests, and the absence of paid/unpaid claims. They are DOM component tests, not live-browser or backend integration tests.
+- Frontend `npm run build` passed (TypeScript and Vite production build); `npm run lint` passed.
+- `git diff --check` passed after the Phase 4 changes.
+- Phase 2 backend tests use isolated H2 data and synthetic OWNER/CUSTOMER entities. They verify own-customer scoping despite another customer's matching records, rejection of customerId query input, product/price/status DTO fields, range/slot filters, pagination, bad dates/enums/ranges/page limits, unauthenticated rejection, and existing CUSTOMER denial on owner DailyRecord endpoints.
+- No live browser-to-backend verification was performed for Phase 2. No claim of end-to-end browser verification is made.
+- No real business data was used or modified.
+
+## Production database and migration validation (PROPOSED; NOT IMPLEMENTED)
+
+Current backend persistence tests use H2 and Hibernate `create-drop`; there is no migration history, PostgreSQL test profile, migration test, or production schema-validation result. Existing H2 test success does not verify PostgreSQL DDL compatibility, locks, isolation, timestamp behavior, or baseline safety.
+
+If Flyway is adopted, the recommended CI migration suite should use disposable PostgreSQL databases and cover:
+- Creating a fresh database by applying all migrations in order, checking Flyway history/checksums and Hibernate `validate`.
+- Upgrading from the previous schema version with synthetic representative rows, asserting data preservation, FK/unique/check constraints, and expected transformations.
+- A controlled baseline test against a reconstructed pre-existing schema, verifying that baselining changes no business data and later migrations apply.
+- A disposable intentional migration failure, confirming deployment/readiness stops and the recovery steps are accurate.
+- PostgreSQL-only UUID, decimal, date/instant, constraint, delete behavior, transaction rollback, locking, deadlock, and concurrent financial-allocation tests.
+
+Before each production release, restore a protected backup into an isolated rehearsal target, run the exact migration artifact from the actual prior schema, check row counts/invariants and timing/locks, and rehearse compatible application rollback or restore/forward-fix. Run restore drills periodically. No migration, baseline, PostgreSQL integration suite, or restore was run for the documentation-only strategy phase.
+
+Keep H2 for fast application tests if valuable; use PostgreSQL-backed tests for the database behavior that production depends on. Do not use production data in ordinary CI or shared test environments.
+
+Phase 3 customer-subscription coverage:
+- Backend integration tests use synthetic customers and products in the isolated H2 test environment. They verify current, future, ended, paused, and cancelled combinations; inclusive date boundaries; correct product summary DTO; cross-customer isolation; customerId rejection; OWNER denial; and anonymous rejection.
+- Frontend tests cover current/other grouping, separate lifecycle status and date-range state, loading/empty/error states, endpoint and bearer-auth usage without a customer ID, invalid response handling, and 401/403/network failures.
+- Subscription frontend tests use injected fetch and view-model functions; they do not claim DOM/browser integration or live browser-to-backend verification.
+- DailyRecord tests asserting today's behavior use the configured India business Clock so they remain correct when the host timezone's local date differs from India.
+
+Phase 4 customer-bill coverage:
+- Backend tests use synthetic bills and verify only ISSUED bills with issue metadata are visible, including exclusion of DRAFT bills, ownership isolation, customerId rejection, CUSTOMER-only authorization, bounded pagination, stable ordering, line snapshots, and customer-safe DTO fields.
+- Focused `BillControllerTest`: 4 passed. Frontend bill tests cover paged response validation, period/date/amount/status fields, loading and empty/error state models, retry, and 401/403/network errors. No payment status is included or inferred.
+- No live browser-to-backend bill workflow was performed.
+
+Frontend API tests use injected fetch functions; the customer bills component tests use jsdom and synthetic responses. Neither approach claims live HTTP integration or browser verification.
 - Frontend production type-check/build and lint are run with `cd frontend && npm run build` and `cd frontend && npm run lint`.
 - Local browser authentication verification used headless Chrome against the actual Vite frontend and Spring Boot backend. The backend used an isolated, uniquely named in-memory H2 database seeded only with synthetic OWNER/CUSTOMER test accounts. Verified owner login and billing data load, invalid credentials, customer rejection without token storage, session restoration, delayed `/auth/me` protected-content gating, sign-out/token removal, a validly signed expired JWT, simulated network failure during session validation, and HTTP 403 for a CUSTOMER bearer on an owner endpoint.
 - The browser run verified HTTP 403 from the backend and the API-client unit tests verify its user-facing permission message; the CUSTOMER owner portal intentionally stops at the role check rather than rendering an owner page that could exercise that message in-context.
@@ -159,3 +195,21 @@ Bill controller tests cover:
 The period row lock serializes bill generation per closed period; database unique constraints protect customer-period and source-record uniqueness. Tests use H2 and do not prove PostgreSQL-specific lock/concurrency behavior.
 
 Bill verification: 6 tests (4 service, 2 controller); combined BillingPeriod, DailyRecord, and Bill verification: 45 tests, 0 failures, 0 errors, 0 skipped. Full-suite verification after Bill Generation: 124 tests, 0 failures, 0 errors, 0 skipped.
+
+## Payment and Balance test strategy (PROPOSED; NOT IMPLEMENTED)
+
+No payment, allocation, adjustment, or balance tests exist because the financial domain has not been implemented. These are required future tests, not current coverage:
+
+| Area | Synthetic scenarios | Invariants/assertions |
+|---|---|---|
+| Receipts | Exact, partial, excess, advance, no-bill, and duplicate retry | Receipt total represents money received exactly once; identical idempotent retries return one receipt; same key/different payload conflicts. |
+| Allocation | One receipt to one/multiple bills; multiple receipts to one bill; unallocated remainder; later explicit allocation | For each receipt, `0 <= net allocations <= received`; unallocated cash equals received less net allocations; allocations never exceed eligible issued-bill remainder. |
+| Eligibility/isolation | DRAFT bill, wrong customer, wrong currency, unknown bill, OWNER/CUSTOMER/anonymous requests | Only authenticated OWNER can write; all payment and bill associations belong to the same customer; CUSTOMER reads expose only principal-linked account data; non-issued bills cannot be allocated. |
+| Adjustments/corrections | Customer and bill-scoped debit/credit, correction with reference, attempted mutation/deletion | Adjustment is not counted as cash; posted event history is append-only and actor/reason attributable; corrections preserve source linkage. |
+| Bill correction | Existing allocation followed by approved bill correction/void path | Preserve the original issued bill and allocation history; no resulting bill balance is negative. Exact expected behavior remains blocked on owner policy. |
+| Concurrency | Concurrent allocations from one receipt and concurrent payments toward one bill | Final receipt allocation never exceeds receipt amount; final bill allocation never exceeds eligible bill obligation; operations serialize or one conflicts without partial writes. Run on PostgreSQL as well as fast H2 tests. |
+| Balance invariants | Mixed bills, allocations, unallocated receipts, and scoped adjustments | `bill outstanding = issued total + bill debits - bill credits - net allocations`; `customer net due = sum bill outstanding + account debits - account credits - unallocated cash`; due and account-credit displays are nonnegative and never both positive. |
+| Compatibility/precision | Legacy bills with unresolved currency; fractional/overflow inputs | No guessed historical currency; unresolved bills cannot accept financial allocations; monetary values use exact supported decimal scale and reject overflow/unsupported fractions. |
+| Read APIs | Stable pagination, event ordering, customer/bill filters | Stable `effectiveAt DESC, id DESC`; bounds enforced; customer ID cannot broaden reads; summaries reconcile to event calculations. |
+
+Use isolated synthetic data only. H2 tests do not prove PostgreSQL lock/isolation behavior. Before implementation, select a migration process and add PostgreSQL-backed concurrency/reconciliation validation.

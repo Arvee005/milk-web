@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -46,6 +47,9 @@ class SubscriptionControllerTest {
 
     @Autowired
     private SubscriptionService subscriptionService;
+
+    @Autowired
+    private Clock businessClock;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -331,6 +335,88 @@ class SubscriptionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateBody("1", LocalDate.now().plusDays(5), null, "ACTIVE")))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void customerListsOnlyTheirSubscriptionsAndDateAndStatusBothDetermineEffectiveness() throws Exception {
+        Customer customer = createCustomer("9700000110");
+        Customer anotherCustomer = createCustomer("9700000111");
+        String token = loginToken(customer.getPhone());
+        LocalDate today = LocalDate.now(businessClock);
+
+        Subscription current = createSubscription(customer, createProduct("Customer Current Milk"),
+                "2.5", today, today);
+        Subscription upcoming = createSubscription(customer, createProduct("Customer Upcoming Milk"),
+                "1", today.plusDays(1), null);
+        Subscription ended = createSubscription(customer, createProduct("Customer Ended Milk"),
+                "3", today.minusDays(5), today.minusDays(1));
+        Subscription paused = createSubscription(customer, createProduct("Customer Paused Milk"),
+                "4", today, null);
+        pauseSubscription(paused);
+        Subscription cancelled = createSubscription(customer, createProduct("Customer Cancelled Milk"),
+                "5", today, null);
+        cancelSubscription(cancelled);
+        createSubscription(anotherCustomer, createProduct("Other Customer Milk"), "7", today, null);
+
+        mockMvc.perform(get("/api/customer/subscriptions")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(5))
+                .andExpect(jsonPath("$[?(@.id=='" + current.getId() + "')].effectiveToday").value(true))
+                .andExpect(jsonPath("$[?(@.id=='" + current.getId() + "')].periodState").value("IN_PERIOD"))
+                .andExpect(jsonPath("$[?(@.id=='" + upcoming.getId() + "')].effectiveToday").value(false))
+                .andExpect(jsonPath("$[?(@.id=='" + upcoming.getId() + "')].periodState").value("UPCOMING"))
+                .andExpect(jsonPath("$[?(@.id=='" + ended.getId() + "')].effectiveToday").value(false))
+                .andExpect(jsonPath("$[?(@.id=='" + ended.getId() + "')].periodState").value("ENDED"))
+                .andExpect(jsonPath("$[?(@.id=='" + paused.getId() + "')].status").value("PAUSED"))
+                .andExpect(jsonPath("$[?(@.id=='" + paused.getId() + "')].effectiveToday").value(false))
+                .andExpect(jsonPath("$[?(@.id=='" + cancelled.getId() + "')].status").value("CANCELLED"))
+                .andExpect(jsonPath("$[?(@.id=='" + cancelled.getId() + "')].periodState").value("IN_PERIOD"))
+                .andExpect(jsonPath("$[?(@.id=='" + cancelled.getId() + "')].effectiveToday").value(false))
+                .andExpect(jsonPath("$[*].productName").exists())
+                .andExpect(jsonPath("$[*].productUnit").exists())
+                .andExpect(jsonPath("$[*].customerId").doesNotExist())
+                .andExpect(jsonPath("$[*].productId").doesNotExist())
+                .andExpect(jsonPath("$[*].customer").doesNotExist())
+                .andExpect(jsonPath("$[*].product").doesNotExist());
+    }
+
+    @Test
+    void customerSubscriptionEndpointRejectsCustomerIdAndOtherRoles() throws Exception {
+        Customer customer = createCustomer("9700000112");
+        String customerToken = loginToken(customer.getPhone());
+        String owner = ownerToken("9700000012");
+
+        mockMvc.perform(get("/api/customer/subscriptions")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .param("customerId", UUID.randomUUID().toString()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/customer/subscriptions")
+                        .header("Authorization", "Bearer " + owner))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/customer/subscriptions"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private void pauseSubscription(Subscription subscription) {
+        subscriptionService.updateSubscription(subscription.getId(), new OwnerUpdateSubscriptionRequest(
+                subscription.getDefaultQuantity(), subscription.getStartDate(), subscription.getEndDate(),
+                SubscriptionStatus.PAUSED));
+    }
+
+    private void cancelSubscription(Subscription subscription) {
+        subscriptionService.updateSubscription(subscription.getId(), new OwnerUpdateSubscriptionRequest(
+                subscription.getDefaultQuantity(), subscription.getStartDate(), subscription.getEndDate(),
+                SubscriptionStatus.CANCELLED));
+    }
+
+    private String loginToken(String phone) throws Exception {
+        String loginJson = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(phone, "secret123"))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(loginJson).get("token").asText();
     }
 
     private Customer createCustomer(String phone) {

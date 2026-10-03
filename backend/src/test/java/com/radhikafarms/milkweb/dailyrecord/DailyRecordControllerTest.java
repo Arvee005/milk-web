@@ -2,6 +2,7 @@ package com.radhikafarms.milkweb.dailyrecord;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.radhikafarms.milkweb.auth.LoginRequest;
+import com.radhikafarms.milkweb.auth.JwtService;
 import com.radhikafarms.milkweb.customer.*;
 import com.radhikafarms.milkweb.product.*;
 import com.radhikafarms.milkweb.user.UserRole;
@@ -15,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -46,6 +48,12 @@ class DailyRecordControllerTest {
 
     @Autowired
     private DailyRecordService dailyRecordService;
+
+    @Autowired
+    private Clock businessClock;
+
+    @Autowired
+    private JwtService jwtService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -138,6 +146,151 @@ class DailyRecordControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(evening.getId().toString()));
+    }
+
+    @Test
+    void customerCanListOnlyTheirOwnRecordsWithProductDetails() throws Exception {
+        Customer customer = customer();
+        Customer otherCustomer = customer();
+        Product product = product();
+        LocalDate today = LocalDate.now();
+        DailyRecord own = createRecord(customer, product, today,
+                DailyRecordSlot.MORNING, DailyRecordStatus.COLLECTED, "1.500", "60.00");
+        createRecord(otherCustomer, product, today,
+                DailyRecordSlot.MORNING, DailyRecordStatus.EXTRA, "2.000", "70.00");
+        String token = jwtService.generateToken(
+                userService.findByPhone(customer.getPhone()).orElseThrow());
+
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("recordDate", today.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(own.getId().toString()))
+                .andExpect(jsonPath("$.content[0].recordDate").value(today.toString()))
+                .andExpect(jsonPath("$.content[0].slot").value("MORNING"))
+                .andExpect(jsonPath("$.content[0].productName").value(product.getName()))
+                .andExpect(jsonPath("$.content[0].productUnit").value("LITRE"))
+                .andExpect(jsonPath("$.content[0].quantity").value(1.5))
+                .andExpect(jsonPath("$.content[0].unitPriceSnapshot").value(60.0))
+                .andExpect(jsonPath("$.content[0].amount").value(90.0))
+                .andExpect(jsonPath("$.content[0].status").value("COLLECTED"))
+                .andExpect(jsonPath("$.content[0].customerId").doesNotExist())
+                .andExpect(jsonPath("$.content[0].product").doesNotExist())
+                .andExpect(jsonPath("$.content[0].passwordHash").doesNotExist());
+    }
+
+    @Test
+    void customerIdQueryParameterCannotBroadenCustomerRecordAccess() throws Exception {
+        Customer customer = customer();
+        Customer otherCustomer = customer();
+        Product product = product();
+        LocalDate today = LocalDate.now();
+        createRecord(customer, product, today,
+                DailyRecordSlot.MORNING, DailyRecordStatus.COLLECTED, "1", "60.00");
+        createRecord(otherCustomer, product, today,
+                DailyRecordSlot.EVENING, DailyRecordStatus.EXTRA, "2", "70.00");
+        String token = jwtService.generateToken(
+                userService.findByPhone(customer.getPhone()).orElseThrow());
+
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("customerId", otherCustomer.getId().toString())
+                        .param("recordDate", today.toString()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void customerDailyRecordDateRangeSlotFiltersAndPaginationAreApplied() throws Exception {
+        Customer customer = customer();
+        Product product = product();
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        LocalDate today = LocalDate.now();
+        createRecord(customer, product, yesterday,
+                DailyRecordSlot.MORNING, DailyRecordStatus.COLLECTED, "1", "60.00");
+        DailyRecord latestMorning = createRecord(customer, product, today,
+                DailyRecordSlot.MORNING, DailyRecordStatus.EXTRA, "2", "70.00");
+        createRecord(customer, product, today,
+                DailyRecordSlot.EVENING, DailyRecordStatus.SKIPPED, "0", null);
+        String token = jwtService.generateToken(
+                userService.findByPhone(customer.getPhone()).orElseThrow());
+
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("fromDate", yesterday.toString())
+                        .param("toDate", today.toString())
+                        .param("slot", "MORNING")
+                        .param("page", "0")
+                        .param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(latestMorning.getId().toString()))
+                .andExpect(jsonPath("$.content[0].status").value("EXTRA"));
+
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("recordDate", today.toString())
+                        .param("status", "SKIPPED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].status").value("SKIPPED"));
+    }
+
+    @Test
+    void customerDailyRecordFiltersRejectInvalidRangesPaginationAndEnums() throws Exception {
+        Customer customer = customer();
+        String token = jwtService.generateToken(
+                userService.findByPhone(customer.getPhone()).orElseThrow());
+        LocalDate today = LocalDate.now();
+
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("fromDate", today.minusDays(1).toString()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("recordDate", today.toString())
+                        .param("toDate", today.toString()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("fromDate", today.toString())
+                        .param("toDate", today.minusDays(1).toString()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("fromDate", today.minusDays(366).toString())
+                        .param("toDate", today.toString()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("page", "-1"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("slot", "NIGHT"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + token)
+                        .param("status", "DELIVERED"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void customerDailyRecordEndpointRequiresCustomerRoleAndAuthentication() throws Exception {
+        String ownerToken = ownerToken("9400000012");
+        mockMvc.perform(get("/api/customer/daily-records")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/customer/daily-records"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -297,7 +450,8 @@ class DailyRecordControllerTest {
         String token = ownerToken("9400000008");
         Customer customer = customer();
         Product product = product();
-        DailyRecord today = createRecord(customer, product, LocalDate.now(),
+        LocalDate todayDate = LocalDate.now(businessClock);
+        DailyRecord today = createRecord(customer, product, todayDate,
                 DailyRecordSlot.MORNING, DailyRecordStatus.COLLECTED, "2", "60.00");
 
         mockMvc.perform(put("/api/owner/daily-records/{dailyRecordId}", today.getId())
@@ -309,7 +463,7 @@ class DailyRecordControllerTest {
                 .andExpect(jsonPath("$.unitPriceSnapshot").value(60.0))
                 .andExpect(jsonPath("$.amount").value(90.0));
 
-        DailyRecord past = createRecord(customer, product(), LocalDate.now().minusDays(1),
+        DailyRecord past = createRecord(customer, product(), todayDate.minusDays(1),
                 DailyRecordSlot.MORNING, DailyRecordStatus.COLLECTED, "1", "60.00");
         mockMvc.perform(put("/api/owner/daily-records/{dailyRecordId}", past.getId())
                         .header("Authorization", "Bearer " + token)
@@ -323,7 +477,7 @@ class DailyRecordControllerTest {
         String token = ownerToken("9400000009");
         Customer customer = customer();
         Product product = product();
-        DailyRecord skipped = createRecord(customer, product, LocalDate.now(),
+        DailyRecord skipped = createRecord(customer, product, LocalDate.now(businessClock),
                 DailyRecordSlot.MORNING, DailyRecordStatus.SKIPPED, "0", null);
 
         mockMvc.perform(put("/api/owner/daily-records/{dailyRecordId}", skipped.getId())

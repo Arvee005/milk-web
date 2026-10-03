@@ -2,6 +2,160 @@
 
 This development log is a chronological record of meaningful milestones in the Milk Web project. Each entry is based on Git history and verified repository contents. Facts are drawn from commit metadata and code; where reasons are not recorded, they are marked as INFERENCE.
 
+# Production Database and Migration Strategy (DOCUMENTATION ONLY)
+
+## Verified repository state
+- The backend uses Spring Boot 4.1.0, Java 21, Spring Data JPA/Hibernate, with H2 and PostgreSQL JDBC runtime dependencies.
+- Development (`application-dev.properties`) and tests (`src/test/resources/application.properties`) explicitly use in-memory H2 and `spring.jpa.hibernate.ddl-auto=create-drop`.
+- Base application properties do not configure PostgreSQL URL/credentials, a production profile, connection pool settings, or a migration tool. No SQL scripts, Flyway/Liquibase setup, schema snapshot, or database deployment service was found.
+- Eight current entity tables are represented by JPA mappings. Their mappings and database documentation are not proof of any live PostgreSQL schema.
+- `User.phone` is mapped at width 15 while API validation accepts ten-digit input; prior database-design text describing a width of 10 was corrected.
+
+## Recommendation and prerequisites
+- Added a Flyway/PostgreSQL migration strategy recommendation: versioned PostgreSQL SQL, Hibernate `validate`, a complete V1 for fresh databases, and explicit baseline only after an existing database is inspected and reconciled to V1.
+- Added proposed ADR-011 for Flyway and the conditional baseline approach. No tool was installed/configured; no database was connected, created, baselined, or changed.
+- Documented local/CI/staging/production lifecycle, expand-and-contract changes, backups and restore drills, H2/PostgreSQL differences, financial-schema dependencies, and migration test/release gates.
+- Before implementation, inspect every target database; establish production ownership/configuration/backups; resolve schema drift and canonical V1; confirm Flyway compatibility; obtain financial policy approvals; and review/checkpoint the existing combined uncommitted worktree.
+
+## Verification
+- Documentation-only changes. `git diff --check` passed.
+- No application tests, migrations, PostgreSQL validation, baseline, production connection, or restore test was run or claimed.
+- Existing uncommitted application and documentation work was preserved; no commit was created.
+
+# Payment and Balance Domain Design (DOCUMENTATION ONLY)
+
+The owner-facing options, recommended defaults, dependencies, deferrals, and approval checklist are in [Financial Policy Decisions](./financial-policy-decisions.md). All recommendations remain pending owner approval.
+
+## Existing behavior confirmed
+- Monthly bills are generated only for MONTHLY customers from chargeable DailyRecords in a CLOSED period. Generated bills are DRAFT; an OWNER explicitly issues them, recording `issuedAt` and `issuedBy`.
+- The CUSTOMER bill endpoint returns only ISSUED bills. Issued status is not payment status.
+- `PREPAID` is currently only a billing-type value that excludes a customer from monthly bill generation. There is no payment, allocation, adjustment, refund, or balance model.
+- Bill, DailyRecord, and line-item monetary values use decimal columns, but currency is not persisted. INR remains unconfirmed. No Flyway/Liquibase dependency or migration scripts were found; development uses H2 `create-drop` and PostgreSQL is the intended production database.
+
+## Design recommendation
+- Proposed an account-level financial ledger with separately attributed, append-only receipts, bill allocation events, and non-cash balance adjustments. Derive bill and account balances; treat stored summaries only as rebuildable projections if later needed.
+- Recommend explicit bill allocations, with unapplied receipts retained as unallocated customer credit. A bill-centric owner shortcut can still create a receipt and allocation. Do not silently distribute a payment across bills.
+- Added proposed OWNER/CUSTOMER API contracts, financial invariants, currency and precision options, idempotency/locking guidance, audit requirements, and a synthetic test matrix.
+- Added ADR-010 as Proposed. It recommends a minimal immutable financial source model rather than mutable authoritative balance fields or a full double-entry accounting system.
+
+## Decisions still required
+- Confirm operating currency and how existing currency-less issued Bills should be interpreted.
+- Confirm account-level credit and PREPAID behavior; allocation order; receipt correction vs refund; issued-bill correction/void/reissue; and adjustment scope/approval.
+- Choose a production schema migration strategy before any financial persistence changes.
+
+## Verification and scope
+- Documentation only: no application code, schema, migrations, tests, or endpoints were changed or added for this design.
+- No test suite was run for this documentation-only phase. Prior Phase 4 verification remains recorded below; this entry does not claim new test results.
+- `git diff --check` is run after these documentation changes. Existing uncommitted application and Phase 1-4 work is preserved; nothing is committed.
+
+# Customer Bills (IMPLEMENTED)
+
+## Existing Billing Lifecycle
+- A billing period must be CLOSED before draft bill generation. Generation uses only chargeable DailyRecords for a MONTHLY customer and snapshots record descriptions, quantities, unit prices, and amounts into immutable bill lines.
+- Generated bills begin as DRAFT. The owner explicitly issues a draft; that operation changes status to ISSUED and stores both `issuedAt` and `issuedBy`. The Bill database check constraint requires these issue fields exactly for ISSUED bills.
+- The customer view therefore exposes only ISSUED bills with issue timestamps. Closed periods and DRAFT bills are not treated as customer-visible/finalized.
+- No payment ledger exists; ISSUED is not represented as paid/unpaid.
+
+## What Was Implemented
+- Added CUSTOMER-only `GET /api/customer/bills` with bounded pagination (page default 0, size default 20 and maximum 100), stable created-time/ID ordering, and an explicit response page DTO.
+- Resolved customer ownership from the authenticated User ID; rejected supplied `customerId`; filtered visible bills in the repository by that customer, ISSUED status, and issue timestamp.
+- Returned customer-safe bill and line DTOs with billing period, issue time, total, and immutable bill-line summaries. Customer PII snapshots, issuer identity, line IDs, and DailyRecord IDs are omitted.
+- Added a responsive Bills view with expandable item details, loading/empty/error/retry states, and pagination. It explicitly states that an issued bill is not a payment receipt and that payment status and currency are unavailable; amounts are shown as stored numeric values without a currency symbol.
+
+## Architectural Decisions and Trade-offs
+- Preserved owner bill generation, retrieval, and issue workflows. Customer visibility reuses the existing ISSUED lifecycle and does not introduce a new bill state.
+- Page bill rows first, then batch-fetch line collections only for the page's customer-scoped IDs. This avoids pagination over a collection fetch join and avoids an N+1 query.
+- A bill is listed, not separately retrieved by client-provided ID; this avoids an unnecessary endpoint and an independent ID-authorization path.
+
+## Verification
+- Backend `BillControllerTest`: 4 tests passed. The full backend suite passed: 138 tests, 0 failures/errors/skips (`cd backend && ./mvnw clean test`).
+- Frontend tests: 34 passed; production build, lint, and `git diff --check` passed. API/view-model coverage includes paging, period/amount/status data, loading/empty/error states, retry behavior, response validation, authorization/network failures, and absence of payment status.
+- Tests use only synthetic H2 data. No live browser-to-backend bill verification is claimed.
+
+## Remaining Work
+- Payments, refunds, balance adjustments, and outstanding balances remain unimplemented. A separate milestone must define payment allocation before displaying payment status or balances.
+
+# Customer Subscriptions (IMPLEMENTED)
+
+## What Was Implemented
+- Added CUSTOMER-only `GET /api/customer/subscriptions`. It derives the Customer from the authenticated User ID, reads only that customer's subscriptions, and rejects a supplied `customerId`.
+- Added a customer-facing DTO with product name/unit, default quantity, status, inclusive start/end dates, `periodState`, and `effectiveToday`. Product is fetched through an entity graph; no JPA relationships or Customer/Product IDs are returned.
+- `periodState` is date-only (UPCOMING, IN_PERIOD, ENDED) relative to the configured India business date. `effectiveToday` requires both ACTIVE status and an inclusive date range containing that date.
+- Replaced the subscriptions placeholder with responsive current/other groups, readable status/date labels, loading/empty/error/retry states, and a note that defaults are plans rather than evidence of actual milk collected.
+
+## Architectural Decisions and Trade-offs
+- Reused the existing customer lookup and subscription domain/query, without changing owner subscription endpoints, mutation rules, or SecurityConfig.
+- Returned all customer subscriptions in a list, matching the existing owner list pattern; the current domain is expected to have modest per-customer volume. Pagination can be added if real usage demonstrates the need.
+- Preserved status and date semantics independently. A PAUSED/CANCELLED row may still be within its date range, and an ACTIVE row can be upcoming or ended; neither alone is represented as effective today.
+- Used the existing `Clock` configured for Asia/Kolkata so the derived date state follows the established business date.
+
+## Verification
+- Focused backend `SubscriptionControllerTest`: 11 tests passed, including isolated customer data, cross-customer isolation, status/date disagreement, inclusive today boundaries, supplied customerId rejection, OWNER denial, and unauthenticated rejection.
+- Full backend suite: 136 tests passed, 0 failures/errors/skips (`cd backend && ./mvnw clean test`).
+- Frontend tests: 29 passed; production build, lint, and `git diff --check` passed.
+- Existing DailyRecord test fixtures that asserted "today" were aligned with the configured India business `Clock`; this avoids dependence on the machine's local timezone.
+- Tests use synthetic data in the existing H2 test environment. No live browser-to-backend subscription verification was performed.
+
+## Remaining Work
+- Customer-facing bills, payment history, and balance are not implemented. Subscription changes remain owner-managed only.
+
+# Customer Daily Records and Today's Collection (IMPLEMENTED)
+
+## What Was Implemented
+- Added `GET /api/customer/daily-records` for customer-owned record history. It supports a date or inclusive date range, optional collection slot/status, and bounded pagination.
+- Resolved the Customer using the authenticated User ID and constrained the repository query by that Customer ID. A supplied `customerId` query parameter is rejected. The paged query fetches Product for product name/unit fields in the customer response DTO.
+- Added customer Overview cards for today's actual MORNING and EVENING records, including product, quantity, status, historical unit-price snapshot, and amount where chargeable. The India-local day is loaded on entry and refreshed every 60 seconds while Overview is active, with a manual refresh control. An absent slot is shown as “No record available for this slot,” not as SKIPPED.
+- Added a Records page with inclusive date-range, slot, status, paging, loading, empty, error, and retry UI. Existing owner record management was not changed.
+
+## Architectural Decisions and Trade-offs
+- Reused `DailyRecordService` and repository query patterns while adding a separate mandatory-customer query. The owner query remains unchanged and owner-only.
+- Capped a date range at 366 calendar dates and pages at 100 records; defaults are page 0 and size 50. Frontend currently uses a 100-row bounded request for today's overview and 20-row pages for history.
+- Wrapped the page in an explicit `CustomerDailyRecordPageResponse` instead of returning Spring `PageImpl` directly, preserving a stable response shape for browser and future mobile clients.
+- The controller returns a customer-specific DTO without Customer/Product entity relations or Customer ID. Product labels are fetched through an entity graph to avoid per-row lazy queries.
+- Unit price/amount are historical values stored on DailyRecord; product name/unit are current Product labels, since the DailyRecord model does not snapshot those labels.
+- A slot with no row cannot be interpreted as a confirmed skipped collection; only explicit persisted statuses carry that meaning. Subscription defaults are not used as actual collection data.
+- Date selection uses the configured India business day on the frontend; the API accepts explicit ISO dates and does not infer business meaning from subscription defaults.
+
+## Verification
+- Full backend suite: 134 tests passed, 0 failures/errors/skips (`cd backend && ./mvnw clean test`).
+- Focused DailyRecord controller/service tests: 30 passed.
+- Frontend suite: 25 tests passed; build and lint passed.
+- `git diff --check` passed.
+- Verification used isolated H2 tests and synthetic records. No live browser-to-backend verification was performed.
+
+## Remaining Work
+- Customer subscriptions and issued bill endpoints/views are still unimplemented.
+- No payments, balance ledger, or outstanding balance is available.
+- Test coverage uses API-client/view-model tests rather than DOM/browser rendering tests; perform browser verification when a dedicated customer test environment is available.
+
+# Customer Authentication and Dashboard Shell (IMPLEMENTED)
+
+## What Was Implemented
+- Reused the existing phone/password login and `/api/auth/me` contracts for both OWNER and CUSTOMER sessions.
+- Kept the existing tab-scoped `sessionStorage` key so valid owner sessions are not discarded by this update. The login response role is not used to choose a workspace; the workspace is selected only after `/api/auth/me` returns the authenticated role.
+- Preserved the owner billing workspace and gated its data loading to OWNER sessions. CUSTOMER sessions render a separate customer shell and never invoke owner APIs.
+- Added responsive, keyboard-accessible navigation for Overview, Records, Subscriptions, Bills, and Profile. The non-profile sections are labeled placeholders; no fake dashboard/business data is displayed.
+- Implemented the customer Profile view with `GET /api/customer/me`, including loading, retryable error, and session-expiry behavior. It displays only profile fields returned by that API.
+- Kept backend behavior and role authorization unchanged.
+
+## Architectural Decisions and Trade-offs
+- Reused the single-page app and existing auth API rather than adding a router or auth dependency. The app needs only role-based workspace selection and in-shell customer navigation at this phase.
+- Kept `sessionStorage` compatibility and verified role data from `/api/auth/me`; this prevents stale or unverified login response data from selecting protected UI. As before, browser role checks are UX controls, not backend authorization.
+- Customer profile requests use `/api/customer/me` and no customer ID. Backend `SecurityConfig` remains responsible for role enforcement.
+- Records, subscriptions, bills, payments, and balances remain unimplemented. The customer workspace does not call owner-only APIs or fabricate values.
+
+## Verification
+- Frontend tests: 18 passed, 0 failed (authentication/session role selection and customer profile API contract/errors).
+- `npm run build`: passed (TypeScript and Vite production build).
+- `npm run lint`: passed.
+- No browser-to-backend workflow was performed for this phase; these results do not claim live integration verification.
+- Backend was not modified; backend tests were not rerun.
+
+## Remaining Work
+- Add customer-scoped DailyRecord APIs and implement records/today overview only after cross-customer isolation tests are designed.
+- Customer subscriptions and bill views need customer-scoped endpoints; payment history and outstanding balance need separate ledger design.
+- No customer dashboard live browser verification was performed.
+
 # DailyRecord Management (IMPLEMENTED)
 
 ## What We Did

@@ -1,6 +1,7 @@
 package com.radhikafarms.milkweb.subscription;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -45,4 +46,12 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
             @Param("status") SubscriptionStatus status,
             @Param("effectiveOn") LocalDate effectiveOn
     );
+
+    @EntityGraph(attributePaths = "product")
+    @Query("""
+            select s from Subscription s
+            where s.customer.id = :customerId
+            order by s.startDate desc, s.id
+            """)
+    List<Subscription> findCustomerSubscriptions(@Param("customerId") UUID customerId);
 }

@@ -73,6 +73,12 @@ public class SubscriptionService {
         return subscriptionRepository.findByFilters(customerId, productId, status, effectiveOn);
     }
 
+    public List<Subscription> listCustomerSubscriptions(UUID userId) {
+        Customer customer = customerRepository.findByUserId(userId)
+                .orElseThrow(() -> new CustomerNotFoundException(userId));
+        return subscriptionRepository.findCustomerSubscriptions(customer.getId());
+    }
+
     @Transactional
     public Subscription updateSubscription(UUID subscriptionId, OwnerUpdateSubscriptionRequest request) {
         validateDateRange(request.startDate(), request.endDate());

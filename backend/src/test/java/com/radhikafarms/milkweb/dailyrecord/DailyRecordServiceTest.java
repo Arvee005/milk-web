@@ -17,6 +17,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -29,6 +30,9 @@ class DailyRecordServiceTest {
 
     @Autowired
     private DailyRecordService dailyRecordService;
+
+    @Autowired
+    private Clock businessClock;
 
     @Autowired
     private CustomerService customerService;
@@ -52,7 +56,7 @@ class DailyRecordServiceTest {
     void createsCollectedRecordAndCalculatesAmountExactly() {
         Customer customer = customer();
         Product product = product();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(businessClock);
 
         DailyRecord record = dailyRecordService.createDailyRecord(
                 request(customer, product, null, today, DailyRecordStatus.COLLECTED,
@@ -76,7 +80,7 @@ class DailyRecordServiceTest {
     void createsExtraSkippedAndPausedEventsWithConditionalValues() {
         Customer customer = customer();
         Product product = product();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(businessClock);
 
         DailyRecord extra = dailyRecordService.createDailyRecord(request(
                 customer, product, null, today, DailyRecordStatus.EXTRA,
@@ -277,8 +281,9 @@ class DailyRecordServiceTest {
     void correctsTodaysQuantityAndStatusWithoutChangingExistingPrice() {
         Customer customer = customer();
         Product product = product();
+        LocalDate today = LocalDate.now(businessClock);
         DailyRecord record = dailyRecordService.createDailyRecord(request(
-                customer, product, null, LocalDate.now(), DailyRecordStatus.COLLECTED,
+                customer, product, null, today, DailyRecordStatus.COLLECTED,
                 DailyRecordSlot.MORNING, "2", "60.00"));
 
         DailyRecord corrected = dailyRecordService.updateDailyRecord(record.getId(),
@@ -300,7 +305,7 @@ class DailyRecordServiceTest {
         Customer customer = customer();
         Product product = product();
         DailyRecord skipped = dailyRecordService.createDailyRecord(request(
-                customer, product, null, LocalDate.now(), DailyRecordStatus.SKIPPED,
+                customer, product, null, LocalDate.now(businessClock), DailyRecordStatus.SKIPPED,
                 DailyRecordSlot.MORNING, "0", null));
 
         assertThatThrownBy(() -> dailyRecordService.updateDailyRecord(skipped.getId(),

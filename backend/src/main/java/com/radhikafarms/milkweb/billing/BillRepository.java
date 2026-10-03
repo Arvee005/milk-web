@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface BillRepository extends JpaRepository<Bill, UUID> {
@@ -34,5 +35,29 @@ public interface BillRepository extends JpaRepository<Bill, UUID> {
             @Param("customerId") UUID customerId,
             @Param("periodStart") LocalDate periodStart,
             Pageable pageable
+    );
+
+    @Query("""
+            select b from Bill b
+            where b.customer.id = :customerId
+              and b.status = com.radhikafarms.milkweb.billing.BillStatus.ISSUED
+              and b.issuedAt is not null
+            """)
+    Page<Bill> findCustomerVisibleBills(
+            @Param("customerId") UUID customerId,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = "lines")
+    @Query("""
+            select distinct b from Bill b
+            where b.customer.id = :customerId
+              and b.status = com.radhikafarms.milkweb.billing.BillStatus.ISSUED
+              and b.issuedAt is not null
+              and b.id in :billIds
+            """)
+    List<Bill> findCustomerVisibleBillsWithLines(
+            @Param("customerId") UUID customerId,
+            @Param("billIds") List<UUID> billIds
     );
 }
