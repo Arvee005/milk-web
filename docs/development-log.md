@@ -2,7 +2,68 @@
 
 This development log is a chronological record of meaningful milestones in the Milk Web project. Each entry is based on Git history and verified repository contents. Facts are drawn from commit metadata and code; where reasons are not recorded, they are marked as INFERENCE.
 
+# Owner Customer and Product Setup (IMPLEMENTED)
+
+## Previous checkpoint
+`7ae1c25` — `feat: add owner daily record entry and review`
+
+## What We Did
+IMPLEMENTED: Replaced the disabled Owner "Customers" navigation placeholder with a working section (`frontend/src/OwnerCustomers.tsx`, `frontend/src/ownerCustomersApi.ts`) and added a new "Products" section (`frontend/src/OwnerProducts.tsx`, `frontend/src/ownerProductsApi.ts`). The owner can create customer accounts, browse and search the customer directory, edit customer details, and activate or deactivate a customer. The owner can create products, edit product details and prices, and activate or deactivate a product.
+
+No backend code changed. Every operation uses endpoints that already existed: `POST`/`GET`/`PUT /api/owner/customers`, `GET`/`POST`/`PUT /api/owner/products`. INFERENCE: no backend gap was found during reconnaissance, so adding an endpoint would have duplicated existing authority.
+
+## Design Decisions
+- IMPLEMENTED: two separate owner sections, selected by widening the existing `OwnerSection` union in `frontend/src/App.tsx` to `'billing' | 'daily-records' | 'customers' | 'products'`. No router and no global state library was introduced; this matches the existing early-return section pattern.
+- IMPLEMENTED: customer search and status filtering run in the browser over the full list from `GET /api/owner/customers`. `CustomerRepository` has no query methods and the list endpoint takes no parameters, so a client-side filter was the only option that avoided a backend change. The filter logic lives in the exported, unit-tested `filterOwnerCustomers` view-model function.
+- IMPLEMENTED: the customer update form always submits `name`, `address`, `billingType`, `status`, and `joinDate`. The backend `PUT` is a full replacement with `@NotNull` on the last three, so a partial body returns 400. The list status buttons build the same complete body from the stored customer rather than sending a status-only patch.
+- IMPLEMENTED: `phone` is read-only in edit mode and is never sent on update. `OwnerUpdateCustomerRequest` has no phone field, and `ownerCannotChangePhoneThroughUpdate` already asserts the server rejects any attempt.
+- IMPLEMENTED: product creation omits `status` entirely because `ProductService.createProduct` always provisions `ProductStatus.ACTIVE`; the status control only renders in edit mode. Product update always includes the current status, matching the full-replacement `OwnerUpdateProductRequest`.
+- IMPLEMENTED: renaming a product or changing its unit requires an explicit second confirmation before the `PUT` is sent. `CustomerDailyRecordController` and `CustomerSubscriptionController` resolve `getProduct().getName()` and `getUnit()` live, so those edits change how already-collected records are labelled. Money is unaffected and the warning states this.
+- IMPLEMENTED: there is no delete action for either entity. `ProductStatus.INACTIVE` is the only removal mechanism the domain supports, so deactivation is presented as the reversible alternative.
+- IMPLEMENTED: 401 clears the session through the existing callback; 403 renders as a permission error and does not expire the session; 409 and 400 render the server message and preserve entered form values.
+- IMPLEMENTED: browser-side checks mirror only the shape the server enforces (10-digit phone, 8-character password, required name, price of at most 10 whole digits and 2 decimals, length limits). They are usability guards, not a second rule engine.
+- IMPLEMENTED: the product response guard validates that the `createdAt`/`updatedAt` date segment is a real calendar date, because the product list renders it through a formatter that throws on an invalid date. A malformed timestamp is rejected at the guard as invalid product data instead of crashing the section during render. This matches the existing `validDate` convention used for customer `joinDate` and DailyRecord dates.
+
+## Trade-offs
+- Client-side search and filtering load every customer on each visit. At a family-dairy customer count this is cheap, but it does not scale; moving search server-side would need new repository query methods and list parameters.
+- The owner sidebar markup is duplicated in each owner section, so adding navigation meant editing three files. This was left in place deliberately: extracting a shared shell would have touched already-committed, passing code for no functional gain in this slice.
+- The customer directory is a card list rather than a table, matching the existing record-review layout and staying usable on small screens.
+- The name/unit confirmation is a second click rather than a modal, keeping it inside the existing form flow and avoiding a new dialog pattern.
+
+## Security implications
+- No new route, DTO, authorization rule, or filter chain was added. `SecurityConfig` still enforces `/api/owner/**` as ROLE_OWNER and was not modified.
+- The customer form posts a plaintext password to `POST /api/owner/customers` exactly once, over the existing authenticated channel. The password is never read back, never stored in browser storage, and is not present in any response DTO. `CustomerResponse` contains no `passwordHash`, so no hash can reach the browser.
+- Because no password-reset or password-change endpoint exists anywhere in the backend, a forgotten customer password cannot be recovered by the owner. This is a real limitation and is now stated in the UI next to the password field and in the success notice after creation.
+- The password input uses `type="password"` with `autoComplete="new-password"`, and the field is removed entirely in edit mode so an existing password is never re-rendered or resent.
+- Client and server error objects are never rendered directly; only the message string extracted by `apiRequest` is displayed.
+
+## Tests
+- `frontend/src/ownerCustomersApi.test.ts` (7 tests): full customer list response, exact create payload including the initial password, null address when blank, update payload containing every full-replacement field and neither phone nor password, 401/403/409 status preservation on both create and update, malformed-response rejection for a bad status, a non-ISO join date, and a bad billing type, client-side search/status filtering, and status/billing-type labels.
+- `frontend/src/ownerProductsApi.test.ts` (6 tests): full product list response, create payload with an asserted-absent `status` field, update payload including `status`, 401/403/409 status preservation, malformed-response rejection for a bad unit, a non-numeric price, and a bad status, empty and malformed `createdAt`/`updatedAt` rejection (`""`, `"bad"`, `"2026-13-45"`, `"2026-02-30"`) with a valid timestamp still accepted, and price/unit/status formatting.
+- `frontend/src/ownerCustomers.component.test.tsx` (12 tests): loading state, empty state, load failure with a working retry, search and status filtering with an asserted single list request, no-match state, successful creation asserting the exact body, client validation blocking the request with no POST issued, duplicate-phone 409 preserving entered values, editing with the complete body and a read-only phone, list status change with a full-replacement body, 403 visible without session expiry, and 401 expiring the session.
+- `frontend/src/ownerProducts.component.test.tsx` (13 tests): loading state, empty state, load failure with retry, creation asserting no `status` in the body, client validation for missing name, malformed price, and excess decimals, duplicate-name 409 preserving values, price/description edit with no confirmation required, name change requiring confirmation and explaining the effect, unit-only change requiring confirmation, warning clearing when the name is restored, deactivate/reactivate with full-replacement bodies, 403 visible, and 401 expiring the session.
+- No backend test was added: no backend behaviour changed.
+- Verification: `./mvnw clean test` = 138 tests, 0 failures, 0 errors, 0 skipped. `npm test` = 52 API client tests + 43 component tests, 0 failures. `npx tsc -b`, `npm run build`, and `npm run lint` passed.
+
+## Problems Encountered
+- The first draft nested the help spans for "Initial password", "Search", and "Price per unit" inside their `<label>` elements. That pollutes each control's accessible name with the hint text and broke `getByLabelText`. The same defect was already recorded for the price field in the previous slice; all three were moved to a `catalog-field` wrapper with a sibling label referenced by `aria-describedby`.
+- Both sections initially rendered their own "Loading …" status block in the entry card and again in the review area, producing duplicate live-region text. The review area now renders nothing while loading, leaving the entry card as the single loading announcement.
+- The product confirmation originally stored an "acknowledged" flag in state and still required a second click on Save. Passing the confirmation explicitly into the save call makes "Confirm and save" a single action and removes the unused state.
+
+## Lessons Learned
+- A full-replacement `PUT` contract is easy to violate from the UI, because a form naturally sends only what changed. Encoding the complete body in the request type and in the list-level status action makes the constraint visible to the type checker rather than leaving it to a 400 at runtime.
+- Before enabling an edit that touches denormalized display data, tracing every read path for that entity is what surfaced the live product-label join. The monetary path was already snapshot-protected; the label path was not.
+
+## Interview Takeaway
+Owner customer and product setup was a frontend-only slice because the domain APIs were already complete and authoritative. The interesting work was not the CRUD wiring but respecting the contract: full-replacement updates, an immutable phone, a server-owned initial status on create, and a confirmation gate for the one edit that is not historically immutable.
+
+## Git Commit
+Not yet committed; commit hash will be recorded after a commit exists.
+
 # Owner DailyRecord Entry and Review (IMPLEMENTED)
+
+## Previous checkpoint
+`e45cfd0` — `feat: add customer dashboard and domain planning`
 
 ## What We Did
 IMPLEMENTED: Replaced the disabled Owner "Daily records" navigation placeholder in `frontend/src/App.tsx` with a working entry and review workspace (`frontend/src/OwnerDailyRecords.tsx`) backed by a dedicated API client (`frontend/src/ownerDailyRecordsApi.ts`). The owner can select a customer, product, date, MORNING/EVENING slot, status, and actual quantity, then save; the review list shows the same records with filters and pagination.
@@ -28,7 +89,7 @@ No backend code changed. The workspace reuses the existing OWNER DailyRecord end
 
 ## Tests
 - `frontend/src/ownerDailyRecordsApi.test.ts` (5 tests): owner customer/product loading, only-active-filter query construction with page/size, create payload shape, update payload limited to quantity/status/price, and rejection of malformed payloads plus 401/403/409 handling.
-- `frontend/src/ownerDailyRecords.component.test.tsx` (11 tests): customer/product loading state, chargeable creation with selected date/slot/quantity/price, quantity validation with no request sent, zero-quantity SKIPPED creation, empty state, rejected creation preserving input, rejected correction, reference-loading failure with retry, filter application, 403 visibility with 401 session expiry, and same-day correction preserving the original price snapshot.
+- `frontend/src/ownerDailyRecords.component.test.tsx` (11 tests): customer/product loading state, chargeable creation with selected date/slot/quantity/price, quantity validation with no request sent, zero-quantity SKIPPED creation, empty state, rejected creation preserving input, rejected correction, reference-loading failure with retry, filter application, 403 visibility with 401 session expiry, same-day correction preserving the original price snapshot, and navigation to Billing, Customers, and Products invoking each section callback.
 - No backend test was added: no backend behavior changed.
 - Verification: `./mvnw test` = 138 tests, 0 failures, 0 errors, 0 skipped. `npm test` = 39 API tests + 17 component tests, 0 failures. `npx tsc -b`, `npm run build`, and `npm run lint` passed. `git diff --check` passed.
 
@@ -679,5 +740,91 @@ Product stores the current catalog price and uses an explicit status, while futu
 ## Conclusion
 FACT: Java 21 is the project baseline. Java 25 was not introduced in history; it was a local unstaged change and was reverted.
 
+
+# Development Owner Seeding
+
+## Date
+2026-10-03 (local module work)
+
+## Git Commit
+Not yet committed; commit hash will be recorded after a commit exists.
+
+## What We Did
+IMPLEMENTED: Added `config/DevOwnerSeeder`, an `ApplicationRunner` annotated `@Profile("dev")`, so a fresh local
+H2 database can be signed into as OWNER without a manual SQL insert. `application-dev.properties` binds
+`milkweb.dev-owner.phone` and `milkweb.dev-owner.password` to the `MILKWEB_DEV_OWNER_PHONE` and
+`MILKWEB_DEV_OWNER_PASSWORD` environment variables. No new endpoint, no committed credential, and no schema
+change was introduced.
+
+## Design Decisions
+- IMPLEMENTED: The bean is gated by `@Profile("dev")` rather than only by an `if` statement, so the code is not
+  even instantiated outside local development.
+- IMPLEMENTED: A second runtime guard requires `dev` to be the only active profile. `@Profile` matches when `dev`
+  is present *alongside* other profiles, so a future `dev,prod` start would otherwise still seed. The explicit
+  check removes that failure mode.
+- IMPLEMENTED: Configuration is read from the `Environment` inside the single main class rather than through a
+  new `@ConfigurationProperties` class. Two dev-only strings did not justify a second type, and it keeps the
+  change to one file. The cost is that the keys are string literals instead of type-checked properties.
+- IMPLEMENTED: The raw password is passed to `UserService.createUser(phone, rawPassword, UserRole.OWNER)` so
+  BCrypt hashing stays in one place. The seeder never hashes anything itself and never logs the password.
+- IMPLEMENTED: Missing or invalid configuration logs what to set and creates nothing. There is no default
+  phone, no default password, and no committed demo credential.
+- IMPLEMENTED: An existing OWNER is left completely untouched, and an existing non-owner is reported but never
+  promoted. Silently granting OWNER to an existing account would be a privilege escalation.
+- IMPLEMENTED: The password rules mirror the existing customer-provisioning contract instead of inventing new
+  ones: `OwnerCreateCustomerRequest` already requires `@Size(min = 8)`, so the seeder requires the same 8
+  characters and a seeded owner is held to the same minimum as an owner-created customer.
+- FACT: BCrypt cannot hash more than 72 bytes. That is a separate, engine-imposed limit rather than a policy
+  choice, so the seeder rejects anything longer and measures the length in UTF-8 bytes rather than Java
+  characters, because a character count understates a multi-byte password.
+- PLANNED / NOT YET IMPLEMENTED: a production bootstrap flow, owner password change/reset, and any CLI-based
+  owner creation.
+
+## Technical Concepts
+- Spring `ApplicationRunner` and `@Profile` conditional bean registration
+- `Environment.getProperty` and `getActiveProfiles` for configuration and profile checks
+- BCrypt hashing through the existing `UserService`
+- Spring test context caching, `@ActiveProfiles`, and `@TestPropertySource`
+- `StandardEnvironment` plus `MapPropertySource` as a lightweight `Environment` stub in tests
+
+## Tests
+`DevOwnerSeederTest` (15 tests) covers profile exclusion, the single-profile guard, missing/invalid phone and
+password, phone trimming, BCrypt hash verification, restart idempotency, existing-owner password preservation,
+no promotion of an existing customer, and the 72-byte BCrypt limit in both ASCII and multi-byte UTF-8 form
+(including a Unicode password that exceeds the limit by bytes while remaining under it by characters, and one
+that stays within it). `DevOwnerSeederDevProfileTest` (1 test) proves the real wiring: with `dev` active and the
+settings supplied as properties, the bean is registered and the owner already exists once the test body runs.
+Verification: `./mvnw clean test` completed with 154 tests, 0 failures, 0 errors, and 0 skipped (BUILD SUCCESS).
+
+## Risks and Follow-up
+- A seeded owner is a real OWNER row in whatever database the `dev` profile points at. Today that is the
+  in-memory `milkdev` H2 database, so it disappears on shutdown; pointing the `dev` profile at a persistent
+  database would persist the account, and rotating the password would require deleting the row because the
+  seeder intentionally never overwrites one.
+- The seeder cannot help an owner who has forgotten the seeded password; password reset remains unimplemented.
+- The 8-character minimum is stated twice in different places — `@Size(min = 8)` on
+  `OwnerCreateCustomerRequest` and `MIN_PASSWORD_LENGTH` in the seeder — so changing one would not change the
+  other. They currently agree, and neither is derived from a shared constant.
+
+## Problems Encountered
+- The first end-to-end test asserted seeding in one method and bean registration in another. Because
+  `ApplicationRunner` runs once per application context, the `@AfterEach` cleanup from the first method deleted
+  the owner before the second method read it. Both assertions were merged into one method.
+- A `./mvnw clean test` run initially failed with `class file version 69.0` for one test class while the
+  toolchain reported Java 21, echoing the earlier Java 25 incident in this log. The stale `target` output was
+  the cause; `./mvnw clean` recompiled consistently and the suite passed. No source or POM change was needed.
+
+## Lessons Learned
+- A profile-scoped bean still needs its own runtime guard if the profile might ever be combined with another.
+- Startup code that provisions accounts must decide explicitly what to do with existing accounts; "do nothing
+  destructive" is safer than "make it match the configuration".
+- A configuration value that arrives from the environment is untrusted input and needs the same validation as
+  an HTTP request, even when it never leaves the developer's machine.
+
+## Interview Takeaway
+Provisioning a first privileged account is a small feature with real security weight. The design keeps the
+blast radius small (dev profile only, explicit env vars, no committed defaults, no silent promotion) and proves
+each rule with a test rather than a comment. The same shape — conditional bean, validated input, idempotent
+behavior — is what a production bootstrap command would reuse.
 
 # End of development log (most recent milestones recorded)

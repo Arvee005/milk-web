@@ -78,6 +78,18 @@ Owner DailyRecord workspace (IMPLEMENTED)
 - The unit-price snapshot is prefilled from the current catalog price as a convenience, but the value stored is the owner-submitted one. The client never computes an amount and never treats the prefilled value as authoritative.
 - No token is written to storage by this workspace; it uses the same tab-scoped `sessionStorage` lifecycle as the owner billing workspace and shares the single sign-out control.
 
+Owner customer and product setup (IMPLEMENTED)
+- The Owner "Customers" and "Products" sections call only existing `/api/owner/**` endpoints. `SecurityConfig` was not modified and no new authorization rule, filter, or role was introduced; these frontend sections are usability boundaries, not access controls.
+- Customer creation is **user provisioning**. The plaintext password is sent once over the existing authenticated channel in the `POST /api/owner/customers` body, is hashed server-side with BCrypt, and is never returned: `CustomerResponse` contains no `passwordHash` or any authentication field, so no hash can reach the browser.
+- The password input uses `type="password"` with `autoComplete="new-password"`, is removed entirely when editing an existing customer, and is cleared from component state after a successful create. It is never persisted to `localStorage`, `sessionStorage`, or any other browser storage.
+- **No password-reset or password-change capability exists anywhere in the backend.** The owner sets a customer's initial password once and cannot change or recover it later. The UI states this next to the password field and again in the success notice, instructing the owner to share the password over a trusted channel. Treat a customer created with a weak or forgotten password as requiring a new customer record until a reset feature exists.
+- A customer's phone number is the login identifier and is immutable after creation: `OwnerUpdateCustomerRequest` has no phone field, and the phone input is read-only in edit mode. The client never sends `phone` or `password` on update.
+- Customer and product search and status filtering run entirely in the browser over data the owner is already authorized to fetch. No filter bypasses the `/api/owner/**` rule.
+- Raw backend response bodies and error objects are never rendered. Only the message string extracted by `apiRequest` is displayed; 401 expires the session, 403 renders as a permission error without expiring it, and 409/400 render the server message while preserving entered form values.
+- Neither section renders or transmits a password hash, JWT secret, or database credential. No secret was added to the frontend in this slice.
+
+**PLANNED / NOT YET IMPLEMENTED:** password reset, password change, multi-factor or invite-based customer onboarding, and server-side customer search.
+
 Billing and Period Management (IMPLEMENTED)
 - Owner period inspection and close endpoints use the existing `/api/owner/**` ROLE_OWNER rule; SecurityConfig was not modified.
 - Unauthenticated requests receive 401; CUSTOMER requests receive 403.
@@ -88,6 +100,14 @@ Billing and Period Management (IMPLEMENTED)
 Secrets and configuration
 - JWT secret is read from configuration (milkweb.jwt.secret). Defaults should not be committed. For dev, application-dev.properties contains a dev-only secret.
 - Do NOT commit production secrets.
+
+Development owner seeding (IMPLEMENTED)
+- `config/DevOwnerSeeder` is an `ApplicationRunner` annotated `@Profile("dev")`, so the bean does not exist at all unless the `dev` profile is active. It creates the first OWNER account from `milkweb.dev-owner.phone` and `milkweb.dev-owner.password`, which `application-dev.properties` binds to the `MILKWEB_DEV_OWNER_PHONE` and `MILKWEB_DEV_OWNER_PASSWORD` environment variables.
+- The raw password is passed to `UserService.createUser(phone, rawPassword, UserRole.OWNER)`, so it is hashed by the same BCrypt encoder used by customer provisioning. The password value is never logged; a validation warning may report its length in characters or UTF-8 bytes. No default or committed credential exists.
+- A runtime guard requires `dev` to be the **only** active profile. Starting with `dev` plus any other profile (for example `dev,prod`) logs a warning and creates nothing, so this cannot become a backdoor when a real profile is added later.
+- Missing or invalid configuration skips seeding and logs an actionable message. The phone must match `\d{10}`, and the password must be at least 8 characters (matching `OwnerCreateCustomerRequest`) and at most 72 UTF-8 bytes, which is BCrypt's limit. Length is measured in bytes because a character count understates a multi-byte password. There is no fallback credential.
+- Seeding is idempotent. An existing OWNER is left untouched, including its password; an existing non-owner account is reported and never silently promoted to OWNER, because that would be an unintended privilege escalation.
+- This is a local-development convenience only. PLANNED / NOT YET IMPLEMENTED: a production bootstrap/CLI flow, owner password change or reset, and any authentication rate limiting.
 
 Token expiration and rotation
 - Tokens have an expiration (default 24 hours). Refresh strategies are not currently implemented; consider refresh tokens or short-lived access tokens for mobile clients.

@@ -17,13 +17,13 @@ Full-stack dairy management platform for a real family dairy business. Customers
 ## Implemented functionality
 
 - JWT authentication with OWNER and CUSTOMER roles
-- Owner customer and product management APIs
+- Owner customer and product management APIs (create, read, update, activate/deactivate)
 - Subscriptions (recurring default plan) and DailyRecords (actual daily supply), kept as separate concepts
 - BillingPeriod inspection and closing, and Bill generation/issuing from actual chargeable records
-- Owner web workspace: Billing, and DailyRecord entry and review
+- Owner web workspace: Billing, DailyRecord entry and review, customer setup, and product setup
 - Customer workspace: profile, today's collection, record history, subscriptions, issued bills
 
-**PLANNED / NOT YET IMPLEMENTED:** payments, balances, financial ledger, refunds, Flyway/PostgreSQL migrations, owner customer management UI, notifications, and analytics.
+**PLANNED / NOT YET IMPLEMENTED:** payments, balances, financial ledger, refunds, Flyway/PostgreSQL migrations, password reset, server-side customer search or pagination, owner subscription management UI, notifications, and analytics.
 
 ## Running locally
 
@@ -32,6 +32,23 @@ Backend:
 ```
 cd backend && ./mvnw spring-boot:run
 ```
+
+The backend starts with no accounts, so a fresh database has no way to sign in as OWNER. To create the first
+development owner, export the values and start the `dev` profile:
+
+```
+cd backend
+export MILKWEB_DEV_OWNER_PHONE=9000000001
+export MILKWEB_DEV_OWNER_PASSWORD='pick-a-local-password'
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+`DevOwnerSeeder` creates that OWNER with the password hashed by the existing BCrypt encoder. The `dev` profile
+uses an in-memory H2 database, so that database and the owner are recreated on every fresh start. If the phone
+is already registered — for example when `dev` is pointed at a persistent database — the existing account is
+left exactly as it is, and a non-owner account is never promoted to OWNER. Seeding runs only when `dev` is the
+only active profile, and creates nothing when either variable is missing or invalid — the log then explains
+what to set. Never reuse these values outside local development.
 
 Frontend:
 
