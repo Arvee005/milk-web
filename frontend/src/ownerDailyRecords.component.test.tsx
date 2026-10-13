@@ -72,13 +72,20 @@ function baseFetcher(
   }
 }
 
-async function showDailyRecords(fetcher: typeof fetch, onSessionExpired = () => undefined) {
+async function showDailyRecords(
+  fetcher: typeof fetch,
+  onSessionExpired = () => undefined,
+  navigation: { onShowBilling?: () => void; onShowCustomers?: () => void; onShowProducts?: () => void; onShowSubscriptions?: () => void } = {},
+) {
   globalThis.fetch = fetcher
   render(createElement(OwnerDailyRecords, {
     token: 'synthetic-owner-token',
     onSignOut: () => undefined,
     onSessionExpired,
-    onShowBilling: () => undefined,
+    onShowBilling: navigation.onShowBilling ?? (() => undefined),
+    onShowCustomers: navigation.onShowCustomers ?? (() => undefined),
+    onShowProducts: navigation.onShowProducts ?? (() => undefined),
+    onShowSubscriptions: navigation.onShowSubscriptions ?? (() => undefined),
   }))
 }
 
@@ -97,6 +104,22 @@ afterEach(() => {
 after(() => dom.window.close())
 
 describe('owner daily records React workflow', { concurrency: false }, () => {
+  it('navigates to every other owner section from the workspace sidebar', async () => {
+    const visited: string[] = []
+    await showDailyRecords(baseFetcher(), () => undefined, {
+      onShowBilling: () => visited.push('billing'),
+      onShowCustomers: () => visited.push('customers'),
+      onShowProducts: () => visited.push('products'),
+    })
+    await screen.findByRole('heading', { name: 'Record a collection' })
+    const nav = within(screen.getByRole('navigation', { name: 'Main navigation' }))
+    fireEvent.click(nav.getByRole('button', { name: 'Billing' }))
+    fireEvent.click(nav.getByRole('button', { name: 'Customers' }))
+    fireEvent.click(nav.getByRole('button', { name: 'Products' }))
+    assert.deepEqual(visited, ['billing', 'customers', 'products'])
+    assert.equal(nav.getByRole('button', { name: 'Daily records' }).getAttribute('aria-current'), 'page')
+  })
+
   it('shows customer/product loading state and loads the entry controls', async () => {
     let releaseCustomers!: (response: Response) => void
     const fetcher: typeof fetch = async (input) => {

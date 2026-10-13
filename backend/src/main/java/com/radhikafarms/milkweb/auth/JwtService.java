@@ -16,12 +16,29 @@ import java.util.UUID;
 @Service
 public class JwtService {
 
+    // HS256 requires a 256-bit (32-byte) key. Enforcing the byte length here gives a
+    // clear startup error instead of letting the JWT library reject the key later,
+    // and prevents an empty default from silently producing forgeable tokens.
+    private static final int MIN_SECRET_BYTES = 32;
+
     private final JwtProperties jwtProperties;
     private final SecretKey secretKey;
 
     public JwtService(JwtProperties jwtProperties) {
         this.jwtProperties = jwtProperties;
-        this.secretKey = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8));
+        String secret = jwtProperties.getSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                "MILKWEB_JWT_SECRET is missing or blank. Set it to a random value of at least "
+                    + MIN_SECRET_BYTES + " bytes before starting the application.");
+        }
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                "MILKWEB_JWT_SECRET is too short for HS256. It must be at least "
+                    + MIN_SECRET_BYTES + " bytes, but was " + secretBytes.length + " bytes.");
+        }
+        this.secretKey = Keys.hmacShaKeyFor(secretBytes);
     }
 
     public String generateToken(User user) {

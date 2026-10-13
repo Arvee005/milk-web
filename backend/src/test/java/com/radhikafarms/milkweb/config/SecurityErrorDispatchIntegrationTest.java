@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.TestPropertySource;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -24,6 +25,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@TestPropertySource(properties = {
+        "spring.flyway.enabled=false",
+        "spring.jpa.hibernate.ddl-auto=create-drop"
+})
 class SecurityErrorDispatchIntegrationTest {
 
     private static final AtomicLong PHONE_SEQUENCE = new AtomicLong(1_000_000_000L);

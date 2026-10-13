@@ -8,6 +8,8 @@ import com.radhikafarms.milkweb.user.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -16,6 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
+@TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:milktest-customer-service")
+@DirtiesContext
 @Transactional
 class CustomerServiceTest {
 

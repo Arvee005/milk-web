@@ -98,8 +98,39 @@ Billing and Period Management (IMPLEMENTED)
 - Customer bill reads are available only through the CUSTOMER-scoped `GET /api/customer/bills` described above; the owner generation/retrieval/issue endpoints remain OWNER-only.
 
 Secrets and configuration
-- JWT secret is read from configuration (milkweb.jwt.secret). Defaults should not be committed. For dev, application-dev.properties contains a dev-only secret.
-- Do NOT commit production secrets.
+- JWT secret is read from configuration (`milkweb.jwt.secret`), which is bound to the
+  `MILKWEB_JWT_SECRET` environment variable. There is **no committed default**: the
+  production property file leaves it empty, and `application-dev.properties` /
+  `application-test.properties` each supply a dev/test-only secret that is **never**
+  used in production.
+- **Do NOT commit production secrets.** Generate a random value of at least 32 bytes
+  (256 bits) per environment and supply it through the environment or a secrets manager.
+- `JwtService` validates the secret at construction time and fails the Spring context
+  refresh with a clear message if it is missing, blank, or shorter than 32 bytes — the
+  HS256 minimum. This prevents an empty default from silently producing forgeable
+  tokens. Tests that exercise `JwtService` directly must supply a strong secret; the
+  test property file already does.
+- `JwtSecretValidationTest` covers missing, blank, and too-short secrets, and confirms
+  that a 32-byte secret is accepted.
+
+Cross-origin (CORS) configuration (IMPLEMENTED)
+- CORS is configured through `SecurityConfig.corsConfigurationSource`, driven by the
+  `milkweb.cors.allowed-origins` property, which is bound to the
+  `MILKWEB_CORS_ALLOWED_ORIGINS` environment variable.
+- The list is **empty by default**, so a misconfigured deployment does not silently
+  fall back to allowing every origin. Set it explicitly for the environment that
+  serves the frontend, e.g. `MILKWEB_CORS_ALLOWED_ORIGINS=https://app.example.com`.
+- Allowed headers: `Authorization`, `Content-Type`, `Accept`, `Origin`,
+  `X-Requested-With`. Allowed methods: `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS`.
+- `allowCredentials` is **false**. Authentication uses a stateless Bearer token in the
+  `Authorization` header, so cookies are not used and enabling credentials would add
+  risk without benefit.
+- `CorsConfigurationTest` verifies preflight responses for allowed origins, the 403
+  response for disallowed origins, and the absence of an
+  `Access-Control-Allow-Credentials` header.
+- Existing authorization rules are unchanged: `/api/auth/login` is public,
+  `/actuator/health` is public, `/api/owner/**` requires OWNER, `/api/customer/**`
+  requires CUSTOMER, and every other request requires authentication.
 
 Development owner seeding (IMPLEMENTED)
 - `config/DevOwnerSeeder` is an `ApplicationRunner` annotated `@Profile("dev")`, so the bean does not exist at all unless the `dev` profile is active. It creates the first OWNER account from `milkweb.dev-owner.phone` and `milkweb.dev-owner.password`, which `application-dev.properties` binds to the `MILKWEB_DEV_OWNER_PHONE` and `MILKWEB_DEV_OWNER_PASSWORD` environment variables.
@@ -107,7 +138,17 @@ Development owner seeding (IMPLEMENTED)
 - A runtime guard requires `dev` to be the **only** active profile. Starting with `dev` plus any other profile (for example `dev,prod`) logs a warning and creates nothing, so this cannot become a backdoor when a real profile is added later.
 - Missing or invalid configuration skips seeding and logs an actionable message. The phone must match `\d{10}`, and the password must be at least 8 characters (matching `OwnerCreateCustomerRequest`) and at most 72 UTF-8 bytes, which is BCrypt's limit. Length is measured in bytes because a character count understates a multi-byte password. There is no fallback credential.
 - Seeding is idempotent. An existing OWNER is left untouched, including its password; an existing non-owner account is reported and never silently promoted to OWNER, because that would be an unintended privilege escalation.
-- This is a local-development convenience only. PLANNED / NOT YET IMPLEMENTED: a production bootstrap/CLI flow, owner password change or reset, and any authentication rate limiting.
+- This is a local-development convenience only. PLANNED / NOT YET IMPLEMENTED: owner password change or reset, and any authentication rate limiting.
+
+Production owner seeding (IMPLEMENTED)
+- `config/ProdOwnerSeeder` is an `ApplicationRunner` annotated `@Profile("prod")`, so the bean does not exist at all unless the `prod` profile is active. It creates the first OWNER account from `milkweb.prod-owner.phone` and `milkweb.prod-owner.password`, which `application-prod.properties` binds to the `MILKWEB_PROD_OWNER_PHONE` and `MILKWEB_PROD_OWNER_PASSWORD` environment variables.
+- The feature is **disabled by default**: both environment variables must be set for the seeder to create anything, and there is no committed or fallback credential. When configuration is missing or invalid, the seeder logs an actionable message and creates nothing.
+- The raw password is passed to `UserService.createUserResilient(phone, rawPassword, UserRole.OWNER)`, so it is hashed by the same BCrypt encoder used by customer provisioning. The password value is never logged; a validation warning may report its length in characters or UTF-8 bytes.
+- A runtime guard requires `prod` to be the **only** active profile. Starting with `prod` plus any other profile (for example `prod,dev`) logs a warning and creates nothing, so this cannot become a backdoor when another profile is added later.
+- Seeding only happens when the users table is empty (`userService.countUsers() == 0`), so it can never overwrite or duplicate an existing account, and an existing non-owner account is never silently promoted to OWNER.
+- Configuration validation mirrors the dev seeder and the customer-provisioning contract: the phone must match `\d{10}`, and the password must be at least 8 characters and at most 72 UTF-8 bytes (BCrypt's hard limit). Length is measured in bytes because a character count understates a multi-byte password.
+- Seeding is idempotent: a repeated invocation with the same configuration leaves the existing OWNER's password and role unchanged.
+- This is a production bootstrap only, gated behind the `prod` profile and opt-in environment variables. PLANNED / NOT YET IMPLEMENTED: a CLI or out-of-band bootstrap flow, owner password change or reset, and any authentication rate limiting.
 
 Token expiration and rotation
 - Tokens have an expiration (default 24 hours). Refresh strategies are not currently implemented; consider refresh tokens or short-lived access tokens for mobile clients.

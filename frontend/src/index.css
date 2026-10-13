@@ -17,13 +17,95 @@
   --deep-green: #174f3d;
   --pale-green: #e8f3ed;
   --white: #fff;
+  --focus-ring-color: rgba(29, 107, 80, 0.35);
+  --focus-ring-offset: 3px;
+  /* Time-of-day theme tokens. The cream-and-green brand identity is kept
+   * intact; only the page background and a few atmospheric accents change. */
+  --sky-0: #f7f8f5;
+  --sky-1: #fff;
+  --sun-color: #f5d5a2;
+  --sun-glow: rgba(245, 213, 162, 0.55);
+  --horizon: #e7f0e6;
+  --theme-accent: var(--green);
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+/* Morning: soft sunrise over the green hills. */
+[data-theme='morning'] {
+  --sky-0: #fff6ec;
+  --sky-1: #f3d9b4;
+  --sun-color: #ffd98a;
+  --sun-glow: rgba(255, 217, 138, 0.6);
+  --horizon: #f0d8b0;
+}
+
+/* Afternoon: bright, clear sky. */
+[data-theme='afternoon'] {
+  --sky-0: #eaf6ef;
+  --sky-1: #d6efe2;
+  --sun-color: #ffe9b0;
+  --sun-glow: rgba(255, 233, 176, 0.5);
+  --horizon: #d4ead9;
+}
+
+/* Evening: warm sunset. */
+[data-theme='evening'] {
+  --sky-0: #f6d9c4;
+  --sky-1: #f0b894;
+  --sun-color: #ff9e6d;
+  --sun-glow: rgba(255, 158, 109, 0.55);
+  --horizon: #e8a980;
+}
+
+/* Night: moon and stars against a deep sky. */
+[data-theme='night'] {
+  --sky-0: #1b2a3a;
+  --sky-1: #243449;
+  --sun-color: #cfe2f0;
+  --sun-glow: rgba(207, 226, 240, 0.35);
+  --horizon: #2c4058;
+  --ink: #eef4f1;
+  --muted: #aabec6;
+  --line: #345063;
+  --white: #1b2a3a;
+  --focus-ring-color: rgba(168, 219, 191, 0.45);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 0%, var(--sky-1), var(--sky-0) 70%, var(--horizon) 100%);
+  color: var(--ink);
+}
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .55; }
 a { color: inherit; }
 
 ::selection { background: #cde9d8; }
+
+/* Consistent, accessible keyboard-focus styling for all interactive controls.
+ * Component-specific selectors (e.g. .login-form input:focus, .records-filter
+ * input:focus) set their own outline/border/box-shadow and therefore take
+ * precedence over this generic rule where they apply. */
+button:focus-visible,
+a[href]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role='button']:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Respect users who have reduced motion enabled in their operating system. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

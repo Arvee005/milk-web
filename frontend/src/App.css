@@ -17,12 +17,15 @@
 .secure-dot { height: 7px; width: 7px; background: #53a779; border-radius: 50%; }
 .signout-button { background: transparent; border: 0; color: #6f7e75; font-size: 12px; padding: 7px; }
 .main-content { flex: 1; min-width: 0; }
-.topbar { height: 65px; display: flex; justify-content: space-between; align-items: center; padding: 0 42px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.84); }
-.breadcrumb { font-size: 12px; color: #85928a; }
-.breadcrumb span { margin: 0 8px; color: #c2cac4; }
+.topbar { height: 65px; display: flex; justify-content: space-between; align-items: center; padding: 0 42px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--white) 88%, transparent); }
+.topbar-greeting { display: flex; align-items: center; gap: 14px; }
+.breadcrumb { font-size: 12px; color: var(--muted); }
+.breadcrumb span { margin: 0 8px; color: color-mix(in srgb, var(--muted) 55%, transparent); }
 .topbar-right { display: flex; align-items: center; gap: 16px; }
-.today-label { font-size: 11px; color: #89968e; }
-.avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #e6f2e9; color: var(--green); font-size: 10px; font-weight: 700; }
+.today-label { font-size: 11px; color: var(--muted); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--pale-green); color: var(--green); font-size: 10px; font-weight: 700; }
+.milk-can-mascot { width: 44px; height: 44px; flex: 0 0 auto; display: block; filter: drop-shadow(0 2px 3px rgba(38, 70, 50, 0.18)); }
+@media (prefers-reduced-motion: reduce) { .milk-can-mascot { animation: none !important; } }
 .page-content { max-width: 1320px; margin: 0 auto; padding: 36px 42px 24px; }
 .page-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin-bottom: 26px; }
 .page-heading .eyebrow, .workflow-intro .eyebrow, .section-heading .eyebrow, .detail-heading .eyebrow { margin: 0 0 7px; }
@@ -33,7 +36,7 @@ h1, h2, h3 { font-family: Manrope, sans-serif; color: var(--ink); }
 .period-picker { display: grid; gap: 6px; font-size: 10px; font-weight: 700; color: #718178; letter-spacing: .3px; }
 .period-picker input { height: 37px; border: 1px solid #dfe6df; background: #fff; border-radius: 8px; padding: 0 10px; color: var(--ink); font-size: 12px; }
 .summary-grid { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 14px; margin-bottom: 17px; }
-.summary-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; min-height: 158px; padding: 17px 19px 15px; box-shadow: 0 3px 10px rgba(38,70,50,.025); }
+.summary-card { background: var(--white); border: 1px solid var(--line); border-radius: 12px; min-height: 158px; padding: 17px 19px 15px; box-shadow: 0 3px 10px rgba(38,70,50,.025); }
 .card-topline { display: flex; justify-content: space-between; align-items: center; height: 27px; }
 .card-icon { height: 28px; width: 28px; border-radius: 9px; display: grid; place-items: center; font-size: 15px; font-weight: 700; }
 .lavender { background: #f0edf9; color: #7564a7; }
@@ -237,6 +240,33 @@ td { height: 58px; border-top: 1px solid #eff2ee; color: #617168; font-size: 10p
 .owner-record-values dt { margin-bottom: 4px; color: #96a198; font-size: 9px; }
 .owner-record-values dd { margin: 0; color: #53665a; font-size: 12px; font-weight: 600; }
 .owner-record-edit { margin-top: 8px; }
+.owner-catalog { max-width: 1320px; }
+.catalog-entry-card { padding: 22px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 3px 10px rgba(38,70,50,.025); }
+.catalog-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.catalog-form > label, .catalog-filters > label { display: grid; gap: 7px; color: #5b6c61; font-size: 11px; font-weight: 700; }
+.catalog-form > .catalog-field, .catalog-filters > .catalog-field { display: grid; gap: 7px; min-width: 0; color: #5b6c61; font-size: 11px; font-weight: 700; }
+.catalog-form input, .catalog-form select, .catalog-filters input, .catalog-filters select { width: 100%; min-width: 0; min-height: 42px; border: 1px solid #dfe6df; border-radius: 8px; padding: 0 11px; background: #fff; color: var(--ink); font: 500 13px 'DM Sans', sans-serif; }
+.catalog-form input[readonly] { background: #f4f6f3; color: #7d8981; }
+.catalog-field { display: grid; gap: 7px; min-width: 0; color: #5b6c61; font-size: 11px; font-weight: 700; }
+.catalog-form .form-hint { color: #8a978e; font-size: 10px; font-weight: 400; line-height: 1.5; }
+.catalog-submit { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.catalog-submit .alert { margin: 0; }
+.catalog-entry-card > .customer-readonly-note { margin-bottom: 0; }
+.catalog-warning { display: grid; gap: 8px; justify-items: start; margin-top: 16px; padding: 15px 17px; border: 1px solid #f0dcc0; border-radius: 10px; background: #fffaf1; }
+.catalog-warning p { margin: 0; color: #7a6440; font-size: 11px; line-height: 1.6; }
+.catalog-warning .catalog-warning-title { color: #8a6a2c; font-size: 12px; font-weight: 700; }
+.catalog-warning .form-hint { min-height: 0; color: #8a978e; }
+.catalog-review { margin-top: 30px; }
+.catalog-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: end; gap: 12px; margin: 0 0 14px; padding: 17px; background: #fff; border: 1px solid var(--line); border-radius: 11px; }
+.catalog-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.catalog-card { padding: 16px 19px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.catalog-card-primary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.catalog-card-primary h3 { margin: 0 0 4px; font-size: 14px; }
+.catalog-card-primary p { margin: 0; color: #819087; font-size: 11px; }
+.catalog-values { display: flex; flex-wrap: wrap; gap: 20px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid #eff2ee; }
+.catalog-values dt { margin-bottom: 4px; color: #96a198; font-size: 9px; }
+.catalog-values dd { margin: 0; color: #53665a; font-size: 12px; font-weight: 600; }
+.catalog-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; }
 .today-collections, .records-history { max-width: 1080px; }
 .today-date { margin-left: 8px; color: var(--muted); font: 500 11px 'DM Sans', sans-serif; letter-spacing: 0; }
 .today-slot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -323,6 +353,21 @@ td { height: 58px; border-top: 1px solid #eff2ee; color: #617168; font-size: 10p
   .owner-daily-shell .sidebar-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 5px; }
   .owner-daily-shell .secure-note { font-size: 10px; padding: 5px 0; border: 0; }
   .owner-daily-shell .signout-button { font-size: 11px; padding: 7px; }
+  .owner-catalog-shell { display: block; }
+  .owner-catalog-shell .sidebar { width: 100%; flex-basis: auto; padding: 12px 14px 8px; align-items: stretch; }
+  .owner-catalog-shell .brand { padding: 0 2px; }
+  .owner-catalog-shell .brand > span:not(.brand-mark), .owner-catalog-shell .workspace-label { display: block; font-size: 12px; }
+  .owner-catalog-shell .workspace-label { margin: 12px 0 4px; }
+  .owner-catalog-shell .sidebar nav { display: flex; gap: 4px; margin-top: 0; overflow-x: auto; padding: 2px 0 5px; }
+  .owner-catalog-shell .nav-item, .owner-catalog-shell .nav-item.active { width: auto; min-width: max-content; height: 38px; justify-content: center; padding: 0 10px; font-size: 11px; }
+  .owner-catalog-shell .nav-icon { font-size: 15px; }
+  .owner-catalog-shell .sidebar-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 5px; }
+  .owner-catalog-shell .secure-note { font-size: 10px; padding: 5px 0; border: 0; }
+  .owner-catalog-shell .signout-button { font-size: 11px; padding: 7px; }
+  .catalog-entry-card { padding: 16px; }
+  .catalog-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+  .catalog-filters { grid-template-columns: 1fr; padding: 13px; }
+  .catalog-card { padding: 14px; }
   .customer-profile-card { padding: 18px; }
   .customer-placeholder { min-height: 230px; padding: 22px; }
   .daily-entry-card { padding: 16px; }
@@ -347,4 +392,245 @@ td { height: 58px; border-top: 1px solid #eff2ee; color: #617168; font-size: 10p
   .customer-subscription-heading { flex-wrap: wrap; }
   .daily-entry-form, .daily-record-filters { grid-template-columns: 1fr; }
   .owner-record-values { gap: 13px; }
+  .catalog-form { grid-template-columns: 1fr; }
+  .catalog-values { gap: 13px; }
+}
+
+/* Night theme: recolor the light surfaces so cards, tables, and forms stay
+ * readable against the dark sky while the cream-and-green brand identity
+ * (green, deep-green, pale-green, focus ring) is preserved. */
+[data-theme='night'] {
+  --white: #243449;
+}
+[data-theme='night'] .sidebar,
+[data-theme='night'] .summary-card,
+[data-theme='night'] .workflow-card,
+[data-theme='night'] .table-wrap,
+[data-theme='night'] .bill-detail,
+[data-theme='night'] .line-table-wrap,
+[data-theme='night'] .customer-profile-card,
+[data-theme='night'] .customer-placeholder,
+[data-theme='night'] .customer-state,
+[data-theme='night'] .customer-subscription-card,
+[data-theme='night'] .customer-bill-card,
+[data-theme='night'] .daily-entry-card,
+[data-theme='night'] .daily-record-filters,
+[data-theme='night'] .owner-record-card,
+[data-theme='night'] .catalog-entry-card,
+[data-theme='night'] .catalog-filters,
+[data-theme='night'] .catalog-card,
+[data-theme='night'] .today-slot-card,
+[data-theme='night'] .records-filter,
+[data-theme='night'] .records-list .daily-record-card,
+[data-theme='night'] .session-error,
+[data-theme='night'] .login-card {
+  background: var(--white);
+  border-color: var(--line);
+  color: var(--ink);
+}
+[data-theme='night'] .period-picker input,
+[data-theme='night'] .generate-form select,
+[data-theme='night'] .daily-entry-form input,
+[data-theme='night'] .daily-entry-form select,
+[data-theme='night'] .daily-record-filters input,
+[data-theme='night'] .daily-record-filters select,
+[data-theme='night'] .catalog-form input,
+[data-theme='night'] .catalog-form select,
+[data-theme='night'] .catalog-filters input,
+[data-theme='night'] .catalog-filters select,
+[data-theme='night'] .records-filter input,
+[data-theme='night'] .records-filter select,
+[data-theme='night'] .login-form input {
+  background: var(--white);
+  border-color: var(--line);
+  color: var(--ink);
+}
+[data-theme='night'] .login-page,
+[data-theme='night'] .login-art {
+  background: var(--white);
+}
+[data-theme='night'] .login-art {
+  background: var(--sky-1);
+}
+[data-theme='night'] .art-sun,
+[data-theme='night'] .art-hill {
+  opacity: 0.55;
+}
+[data-theme='night'] .art-sun { background: var(--sun-color); }
+[data-theme='night'] .art-caption { color: #cfe2f0; }
+[data-theme='night'] .art-caption span { color: #8fb3a0; }
+[data-theme='night'] th,
+[data-theme='night'] .line-table tfoot td,
+[data-theme='night'] .table-wrap thead th,
+[data-theme='night'] .table-wrap tfoot td {
+  background: color-mix(in srgb, var(--white) 92%, transparent);
+}
+[data-theme='night'] .login-form input:focus,
+[data-theme='night'] .generate-form select:focus,
+[data-theme='night'] .period-picker input:focus,
+[data-theme='night'] .records-filter input:focus,
+[data-theme='night'] .records-filter select:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+/* Night theme: accessible text and control contrast.
+ * Keep this scoped to night mode so the daytime themes remain unchanged. */
+[data-theme='night'] {
+  --line: #526477;
+  --muted: #c0cec7;
+}
+
+[data-theme='night'] .workspace-label,
+[data-theme='night'] .eyebrow,
+[data-theme='night'] .summary-label,
+[data-theme='night'] th,
+[data-theme='night'] .customer-profile-grid dt,
+[data-theme='night'] .customer-subscription-details dt,
+[data-theme='night'] .customer-bill-summary dt,
+[data-theme='night'] .customer-bill-line dt,
+[data-theme='night'] .owner-record-values dt,
+[data-theme='night'] .catalog-values dt,
+[data-theme='night'] .daily-record-details dt {
+  color: #c0cec7;
+}
+
+[data-theme='night'] .nav-item:not(.active),
+[data-theme='night'] .secure-note,
+[data-theme='night'] .subscription-group h2,
+[data-theme='night'] .customer-subscription-heading h3,
+[data-theme='night'] .customer-subscription-heading p,
+[data-theme='night'] .customer-subscription-details dd,
+[data-theme='night'] .customer-bill-heading h2,
+[data-theme='night'] .customer-bill-summary dd,
+[data-theme='night'] .customer-bill-line dd,
+[data-theme='night'] .customer-bill-lines > h3,
+[data-theme='night'] .customer-bill-line > div:first-child p,
+[data-theme='night'] .customer-bill-line > div:first-child span,
+[data-theme='night'] .daily-entry-form > label,
+[data-theme='night'] .daily-entry-form .daily-field > label,
+[data-theme='night'] .daily-record-filters > label,
+[data-theme='night'] .daily-slot-choice legend,
+[data-theme='night'] .daily-slot-choice label,
+[data-theme='night'] .catalog-form > label,
+[data-theme='night'] .catalog-filters > label,
+[data-theme='night'] .catalog-form > .catalog-field,
+[data-theme='night'] .catalog-filters > .catalog-field,
+[data-theme='night'] .catalog-field,
+[data-theme='night'] .records-filter label,
+[data-theme='night'] .daily-record-product,
+[data-theme='night'] .daily-record-quantity,
+[data-theme='night'] .owner-record-values dd,
+[data-theme='night'] .catalog-values dd,
+[data-theme='night'] .records-pagination,
+[data-theme='night'] .missing-record,
+[data-theme='night'] .records-list .daily-record-card,
+[data-theme='night'] .records-history .customer-state > p:last-child {
+  color: #d1ddd7;
+}
+
+[data-theme='night'] .summary-card,
+[data-theme='night'] .workflow-card,
+[data-theme='night'] .table-wrap,
+[data-theme='night'] .line-table-wrap,
+[data-theme='night'] .customer-profile-card,
+[data-theme='night'] .customer-placeholder,
+[data-theme='night'] .customer-state,
+[data-theme='night'] .customer-subscription-card,
+[data-theme='night'] .customer-bill-card,
+[data-theme='night'] .daily-entry-card,
+[data-theme='night'] .daily-record-filters,
+[data-theme='night'] .owner-record-card,
+[data-theme='night'] .catalog-entry-card,
+[data-theme='night'] .catalog-filters,
+[data-theme='night'] .catalog-card,
+[data-theme='night'] .today-slot-card,
+[data-theme='night'] .records-filter,
+[data-theme='night'] .records-list .daily-record-card,
+[data-theme='night'] .bill-detail,
+[data-theme='night'] .session-error,
+[data-theme='night'] .login-card {
+  border-color: #526477;
+}
+
+[data-theme='night'] td,
+[data-theme='night'] .line-table td,
+[data-theme='night'] .table-wrap td {
+  color: #d1ddd7;
+  border-top-color: #405368;
+}
+
+[data-theme='night'] .period-picker input,
+[data-theme='night'] .generate-form select,
+[data-theme='night'] .daily-entry-form input,
+[data-theme='night'] .daily-entry-form select,
+[data-theme='night'] .daily-record-filters input,
+[data-theme='night'] .daily-record-filters select,
+[data-theme='night'] .catalog-form input,
+[data-theme='night'] .catalog-form select,
+[data-theme='night'] .catalog-filters input,
+[data-theme='night'] .catalog-filters select,
+[data-theme='night'] .records-filter input,
+[data-theme='night'] .records-filter select,
+[data-theme='night'] .login-form input {
+  border-color: #65798d;
+  color: #eef4f1;
+}
+
+[data-theme='night'] input::placeholder,
+[data-theme='night'] textarea::placeholder {
+  color: #c0cec7;
+  opacity: 1;
+}
+
+[data-theme='night'] .daily-entry-form input:disabled,
+[data-theme='night'] .catalog-form input[readonly] {
+  background: #304256;
+  color: #c0cec7;
+  opacity: 1;
+}
+
+[data-theme='night'] .daily-entry-form .form-hint,
+[data-theme='night'] .catalog-form .form-hint,
+[data-theme='night'] .catalog-warning .form-hint,
+[data-theme='night'] .owner-record-primary p,
+[data-theme='night'] .catalog-card-primary p,
+[data-theme='night'] .daily-record-details dd,
+[data-theme='night'] .today-date {
+  color: #c0cec7;
+}
+
+[data-theme='night'] .customer-placeholder > p:last-child,
+[data-theme='night'] .customer-placeholder .eyebrow,
+[data-theme='night'] .customer-profile-grid dt,
+[data-theme='night'] .customer-subscription-heading p,
+[data-theme='night'] .customer-bill-line > div:first-child span {
+  color: #c0cec7;
+}
+
+[data-theme='night'] .records-filter input:focus,
+[data-theme='night'] .records-filter select:focus,
+[data-theme='night'] .period-picker input:focus,
+[data-theme='night'] .generate-form select:focus,
+[data-theme='night'] .daily-entry-form input:focus-visible,
+[data-theme='night'] .daily-entry-form select:focus-visible,
+[data-theme='night'] .daily-record-filters input:focus-visible,
+[data-theme='night'] .daily-record-filters select:focus-visible,
+[data-theme='night'] .catalog-form input:focus-visible,
+[data-theme='night'] .catalog-form select:focus-visible,
+[data-theme='night'] .catalog-filters input:focus-visible,
+[data-theme='night'] .catalog-filters select:focus-visible,
+[data-theme='night'] .login-form input:focus-visible {
+  outline: 2px solid #a3ddb3;
+  outline-offset: 2px;
+  border-color: #a3ddb3;
+  box-shadow: 0 0 0 3px rgba(163, 221, 179, 0.22);
+}
+
+[data-theme='night'] .owner-nav-item:focus-visible {
+  outline-color: #a3ddb3;
+}
+
+[data-theme='night'] .art-caption span {
+  color: #c0cec7;
 }

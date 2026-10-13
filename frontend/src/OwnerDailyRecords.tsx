@@ -21,6 +21,9 @@ type OwnerDailyRecordsProps = {
   onSignOut: () => void
   onSessionExpired: () => void
   onShowBilling: () => void
+  onShowCustomers: () => void
+  onShowProducts: () => void
+  onShowSubscriptions: () => void
 }
 
 const statuses: { value: OwnerDailyRecordStatus; label: string }[] = [
@@ -94,6 +97,9 @@ export default function OwnerDailyRecords({
   onSignOut,
   onSessionExpired,
   onShowBilling,
+  onShowCustomers,
+  onShowProducts,
+  onShowSubscriptions,
 }: OwnerDailyRecordsProps) {
   const today = todayInIndia()
   const [customers, setCustomers] = useState<OwnerCustomerOption[]>([])
@@ -112,6 +118,7 @@ export default function OwnerDailyRecords({
   const [entryError, setEntryError] = useState('')
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [editing, setEditing] = useState<OwnerDailyRecord | null>(null)
   const [filters, setFilters] = useState<OwnerDailyRecordFilters>({
     recordDate: today,
@@ -258,6 +265,7 @@ export default function OwnerDailyRecords({
 
   async function saveRecord(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (savingRef.current) return
     setEntryError('')
     setNotice('')
     const validationMessage = validateEntry({
@@ -282,6 +290,7 @@ export default function OwnerDailyRecords({
       unitPriceSnapshot: isChargeable(status) ? Number(unitPriceSnapshot) : null,
       status,
     }
+    savingRef.current = true
     setSaving(true)
     try {
       if (editing) {
@@ -314,6 +323,7 @@ export default function OwnerDailyRecords({
     } catch (error) {
       setEntryError(handleError(error))
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
@@ -332,7 +342,15 @@ export default function OwnerDailyRecords({
           <button type="button" className="nav-item owner-nav-item active" aria-current="page">
             <span className="nav-icon" aria-hidden="true">◷</span> Daily records
           </button>
-          <span className="nav-item disabled"><span className="nav-icon">♧</span> Customers</span>
+          <button type="button" className="nav-item owner-nav-item" onClick={onShowCustomers}>
+            <span className="nav-icon" aria-hidden="true">♧</span> Customers
+          </button>
+          <button type="button" className="nav-item owner-nav-item" onClick={onShowProducts}>
+            <span className="nav-icon" aria-hidden="true">◈</span> Products
+          </button>
+          <button type="button" className="nav-item owner-nav-item" onClick={onShowSubscriptions}>
+            <span className="nav-icon" aria-hidden="true">◈</span> Subscriptions
+          </button>
         </nav>
         <div className="sidebar-bottom">
           <div className="secure-note"><span className="secure-dot" /> Secure owner session</div>

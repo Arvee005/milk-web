@@ -11,7 +11,12 @@ import {
   workspaceForRole,
 } from './authApi'
 import CustomerWorkspace from './CustomerWorkspace'
+import OwnerCustomers from './OwnerCustomers'
 import OwnerDailyRecords from './OwnerDailyRecords'
+import OwnerProducts from './OwnerProducts'
+import OwnerSubscriptions from './OwnerSubscriptions'
+import { getTimeTheme, type TimeTheme } from './TimeTheme'
+import MilkCanMascot from './MilkCanMascot'
 import './App.css'
 
 type Customer = {
@@ -67,7 +72,7 @@ type Page<T> = {
 }
 
 const PAGE_SIZE = 10
-type OwnerSection = 'billing' | 'daily-records'
+type OwnerSection = 'billing' | 'daily-records' | 'customers' | 'products' | 'subscriptions'
 
 type Session =
   | { status: 'checking'; token: string; user: null }
@@ -121,6 +126,7 @@ function formatMonth(period: string) {
 function App() {
   const [session, setSession] = useState<Session>(initialSession)
   const [ownerSection, setOwnerSection] = useState<OwnerSection>('billing')
+  const [theme, setTheme] = useState<TimeTheme>(() => getTimeTheme())
   const token = session.token
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -216,6 +222,35 @@ function App() {
       active = false
     }
   }, [session.token, session.status])
+
+  // Update the time-of-day visual theme from the user's local clock. The theme
+  // is re-evaluated at least once per minute so it stays correct across
+  // midnight boundaries without needing a page reload.
+  useEffect(() => {
+    let active = true
+    const tick = () => {
+      if (active) setTheme(getTimeTheme())
+    }
+    tick()
+    const timer = window.setInterval(tick, 60_000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  // Sync the active theme to the document root so every element — including the
+  // body, login page, and session states — inherits the time-of-day variables
+  // from a single source instead of relying on per-shell data-theme attributes.
+  // The setAttribute effect re-runs on every theme change; the separate
+  // empty-dependency effect only clears the attribute when App unmounts, so an
+  // ordinary theme change never briefly resets the document theme.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+  useEffect(() => () => {
+    document.documentElement.removeAttribute('data-theme')
+  }, [])
 
   useEffect(() => {
     if (session.status !== 'authenticated' || session.user.role !== 'OWNER' || ownerSection !== 'billing') return
@@ -378,6 +413,12 @@ function App() {
     )
   }
 
+  function showOwnerSection(section: OwnerSection) {
+    workspaceRequestId.current += 1
+    setLoading(false)
+    setOwnerSection(section)
+  }
+
   if (ownerSection === 'daily-records') {
     return (
       <OwnerDailyRecords
@@ -385,6 +426,51 @@ function App() {
         onSignOut={signOut}
         onSessionExpired={expireSession}
         onShowBilling={() => setOwnerSection('billing')}
+        onShowCustomers={() => showOwnerSection('customers')}
+        onShowProducts={() => showOwnerSection('products')}
+        onShowSubscriptions={() => showOwnerSection('subscriptions')}
+      />
+    )
+  }
+
+  if (ownerSection === 'customers') {
+    return (
+      <OwnerCustomers
+        token={session.token}
+        onSignOut={signOut}
+        onSessionExpired={expireSession}
+        onShowBilling={() => setOwnerSection('billing')}
+        onShowDailyRecords={() => showOwnerSection('daily-records')}
+        onShowProducts={() => showOwnerSection('products')}
+        onShowSubscriptions={() => showOwnerSection('subscriptions')}
+      />
+    )
+  }
+
+  if (ownerSection === 'products') {
+    return (
+      <OwnerProducts
+        token={session.token}
+        onSignOut={signOut}
+        onSessionExpired={expireSession}
+        onShowBilling={() => setOwnerSection('billing')}
+        onShowDailyRecords={() => showOwnerSection('daily-records')}
+        onShowCustomers={() => showOwnerSection('customers')}
+        onShowSubscriptions={() => showOwnerSection('subscriptions')}
+      />
+    )
+  }
+
+  if (ownerSection === 'subscriptions') {
+    return (
+      <OwnerSubscriptions
+        token={session.token}
+        onSignOut={signOut}
+        onSessionExpired={expireSession}
+        onShowBilling={() => setOwnerSection('billing')}
+        onShowDailyRecords={() => showOwnerSection('daily-records')}
+        onShowCustomers={() => showOwnerSection('customers')}
+        onShowProducts={() => showOwnerSection('products')}
       />
     )
   }
@@ -393,7 +479,7 @@ function App() {
   const selectedCustomer = monthlyCustomers.find((customer) => customer.id === customerId)
   const canClose = Boolean(period && period.status === 'OPEN' && period.period < previousMonthInIndia())
 
-  return (
+return (
     <div className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="/" aria-label="Milk Web home">
@@ -401,13 +487,11 @@ function App() {
         </a>
         <div className="workspace-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
-          <button type="button" className="nav-item owner-nav-item active" aria-current="page" onClick={() => setOwnerSection('billing')}><span className="nav-icon" aria-hidden="true">▤</span> Billing</button>
-          <button type="button" className="nav-item owner-nav-item" onClick={() => {
-            workspaceRequestId.current += 1
-            setLoading(false)
-            setOwnerSection('daily-records')
-          }}><span className="nav-icon" aria-hidden="true">◷</span> Daily records</button>
-          <span className="nav-item disabled"><span className="nav-icon">♧</span> Customers</span>
+          <button type="button" className="nav-item owner-nav-item active" aria-current="page" onClick={() => setOwnerSection('billing')}><span className="nav-icon" aria-hidden="true">▦</span> Billing</button>
+          <button type="button" className="nav-item owner-nav-item" onClick={() => showOwnerSection('daily-records')}><span className="nav-icon" aria-hidden="true">◧</span> Daily records</button>
+          <button type="button" className="nav-item owner-nav-item" onClick={() => showOwnerSection('customers')}><span className="nav-icon" aria-hidden="true">♢</span> Customers</button>
+          <button type="button" className="nav-item owner-nav-item" onClick={() => showOwnerSection('products')}><span className="nav-icon" aria-hidden="true">◈</span> Products</button>
+          <button type="button" className="nav-item owner-nav-item" onClick={() => showOwnerSection('subscriptions')}><span className="nav-icon" aria-hidden="true">◈</span> Subscriptions</button>
         </nav>
         <div className="sidebar-bottom">
           <div className="secure-note"><span className="secure-dot" /> Secure owner session</div>
@@ -417,7 +501,10 @@ function App() {
 
       <main id="billing" className="main-content">
         <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> Billing</div>
+          <div className="topbar-greeting">
+            <div className="breadcrumb">Workspace <span>/</span> Billing</div>
+            <MilkCanMascot theme={theme} label="Milk Web mascot" />
+          </div>
           <div className="topbar-right"><span className="today-label">{new Intl.DateTimeFormat('en-IN', {
             dateStyle: 'medium', timeZone: 'Asia/Kolkata',
           }).format(new Date())}</span><span className="avatar">OW</span></div>

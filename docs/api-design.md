@@ -240,6 +240,27 @@ The Owner "Daily records" workspace calls these endpoints unchanged; no endpoint
 - Duplicate-slot, closed-period, eligibility, and future-date conflicts surface as 409 and are shown to the owner as-is; no client-side business rule replaces them.
 - **PLANNED / NOT YET IMPLEMENTED:** a multi-day range control in the owner review list, and any owner-facing DailyRecord analytics or summaries.
 
+### Owner customer and product setup (IMPLEMENTED)
+
+The Owner "Customers" and "Products" workspaces call the existing customer and product endpoints unchanged. No endpoint, DTO, status code, or database change was introduced for this workflow.
+
+Customer requests:
+- `POST /api/owner/customers` provisions the customer login. The request carries `phone`, `password`, `name`, and optionally `address`, `billingType`, `status`, and `joinDate`. The server always creates the linked `User` with role CUSTOMER and a BCrypt hash; the password is never echoed in any response.
+- `PUT /api/owner/customers/{customerId}` is a **full replacement**. `name` is required and `billingType`, `status`, and `joinDate` are `@NotNull`, so the client must always send all of them. The request DTO has **no** phone field: a phone number cannot be changed after creation.
+- `GET /api/owner/customers` returns every customer unpaginated and accepts **no** query parameters. The workspace's name/phone search and status filter therefore run in the browser over the full list.
+- A duplicate phone returns 409, an unknown customer 404, and a missing or malformed field 400.
+
+Product requests:
+- `POST /api/owner/products` accepts `name`, `description`, `unit`, and `price` only. **There is no status field**: `ProductService` always provisions a new product as `ACTIVE`, so the client omits status entirely on create.
+- `PUT /api/owner/products/{productId}` is a full replacement and **requires** `status`, which is how activation and deactivation are performed. No delete endpoint exists; `INACTIVE` is the only removal mechanism the domain supports.
+- A duplicate product name returns 409 via `uk_products_name`, and price is constrained to a non-negative `NUMERIC(12,2)`.
+
+Historical immutability when editing a product:
+- Changing `price` does not alter historical `DailyRecord` amounts or issued bills. Each record stores its own `unitPriceSnapshot` and `amount`, and `BillLine` persists `description`, `unit_price`, and `amount` as `updatable = false`. The billing package never reads `ProductRepository`.
+- Changing `name` or `unit` **does** change how already-collected records are labelled on the customer-facing endpoints, because `CustomerDailyRecordController` and `CustomerSubscriptionController` resolve `getProduct().getName()` and `getUnit()` live rather than from a snapshot. The owner workspace warns about this and requires explicit confirmation before saving such a change.
+
+**PLANNED / NOT YET IMPLEMENTED:** password reset or password change for any account, owner-side customer search/pagination on the server, customer deletion, product deletion, and any owner-facing subscription management.
+
 ## Billing Period Management (IMPLEMENTED)
 
 Billing periods are calendar months identified by `YYYY-MM`, with inclusive canonical first/last dates. Period inspection/closing and per-customer Bill generation/issuing are implemented.
