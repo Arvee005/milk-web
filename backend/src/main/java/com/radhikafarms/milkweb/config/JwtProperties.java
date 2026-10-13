@@ -1,10 +1,12 @@
 package com.radhikafarms.milkweb.config;
 
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "milkweb.jwt")
 public class JwtProperties {
 
+    @NotBlank
     private String secret;
     private long expirationMs = 86400000;
 

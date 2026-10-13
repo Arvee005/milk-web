@@ -32,6 +32,13 @@ public class JwtService {
                 "MILKWEB_JWT_SECRET is missing or blank. Set it to a random value of at least "
                     + MIN_SECRET_BYTES + " bytes before starting the application.");
         }
+        // Detect unresolved Spring placeholder (e.g. "${MILKWEB_JWT_SECRET}") which indicates
+        // the environment variable was not set and no default was provided.
+        if (secret.startsWith("${") && secret.endsWith("}")) {
+            throw new IllegalStateException(
+                "MILKWEB_JWT_SECRET is not configured. The placeholder '" + secret + "' was not resolved. "
+                    + "Ensure the environment variable is set in the deployment environment.");
+        }
         byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < MIN_SECRET_BYTES) {
             throw new IllegalStateException(
