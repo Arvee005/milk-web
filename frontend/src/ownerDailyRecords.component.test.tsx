@@ -178,7 +178,7 @@ describe('owner daily records React workflow', { concurrency: false }, () => {
     const createdList = await screen.findByRole('list', { name: 'Recorded collections' })
     assert.ok(within(createdList).getByRole('heading', { name: customer.name }))
     assert.ok(within(createdList).getByText('Extra milk'))
-    assert.ok(within(createdList).getByText('163.75'))
+    assert.ok(within(createdList).getByText('₹163.75'))
   })
 
   it('validates quantity before sending a chargeable record', async () => {
@@ -228,7 +228,7 @@ describe('owner daily records React workflow', { concurrency: false }, () => {
     assert.equal(postBodies[0].unitPriceSnapshot, null)
     const skippedList = await screen.findByRole('list', { name: 'Recorded collections' })
     assert.ok(within(skippedList).getByText('Skipped'))
-    assert.ok(within(skippedList).getByText('0.00'))
+    assert.ok(within(skippedList).getByText('₹0.00'))
   })
 
   it('shows the empty state when no records match the filters', async () => {
@@ -388,6 +388,6 @@ describe('owner daily records React workflow', { concurrency: false }, () => {
     assert.equal(updateBodies[0].quantity, 2.5)
     assert.equal(updateBodies[0].status, 'COLLECTED')
     assert.equal(updateBodies[0].unitPriceSnapshot, 60)
-    assert.ok(screen.getByText('150.00'))
+    assert.ok(screen.getByText('₹150.00'))
   })
 })

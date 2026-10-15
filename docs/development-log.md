@@ -963,4 +963,31 @@ Commit: not yet committed (fill in after commit).
   owner test for the day arrows. `npm test` 87 API + 73 component tests pass; lint clean; build succeeds.
   Screenshots with seeded data checked at 1280px and 390px in light and dark mode.
 
+## Milestone: Redesign phase 3, receipt-style bills and rupee amounts (2026-10-15)
+
+Commit: not yet committed (fill in after commit).
+
+- IMPLEMENTED: `BillReceipt.tsx`, one receipt component for both customer and owner bills: farm header, bill
+  number, customer details, totals per product and price, bill total, an "Issued <date>" or "Draft · not issued"
+  stamp, and the full day-by-day lines on request. `receiptLines.ts` groups lines by product and unit price, so a
+  mid-month price change appears as its own line and every line reads "quantity × one price".
+- IMPLEMENTED (customer Bills): the selected bill as a receipt beside a list of all bills; ‹ › arrows step to the
+  older or newer bill and load the next or previous page when they reach the end of the current one.
+- IMPLEMENTED (owner Billing): the bill snapshot panel now uses the same receipt.
+- IMPLEMENTED: `money.ts` `formatRupees` (₹ with Indian digit grouping, e.g. ₹1,23,456.78) used for every amount
+  and price in the app.
+- Backend: `GET /api/customer/bills` now sorts by billing month (`periodStart DESC`, then `createdAt DESC`, `id`)
+  instead of creation time, so the arrows never jump out of month order when an older bill is generated late.
+  No schema change.
+- Not included: paid/unpaid stamps and balances need the payments ledger (phase 4). Receipts say "This bill is
+  not a payment receipt".
+- Problems: `billReceipt.ts` and `BillReceipt.tsx` collided on the case-insensitive macOS file system again; the
+  logic file is `receiptLines.ts`.
+- Tests: `receiptLines.test.ts` (5: rupee format with Indian grouping, per-product totals, price-change split,
+  rounding, empty bill); three new customer bill tests (receipt contents, arrows and list within a page, arrows
+  loading another page); a backend test that bills generated out of order come back in month order. Exact amount
+  assertions in five existing tests were updated to the ₹ format. Frontend 92 API + 76 component tests pass;
+  backend 206 tests pass; lint clean; build succeeds. Screenshots with seeded data checked at laptop and phone
+  sizes in light and dark mode.
+
 # End of development log (most recent milestones recorded)

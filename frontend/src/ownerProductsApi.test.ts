@@ -191,8 +191,8 @@ describe('owner products API client', () => {
   })
 
   it('formats prices and renders human labels for unit and status', () => {
-    assert.equal(formatProductPrice(82.5), '82.50')
-    assert.equal(formatProductPrice(1400), '1,400.00')
+    assert.equal(formatProductPrice(82.5), '₹82.50')
+    assert.equal(formatProductPrice(1400), '₹1,400.00')
     assert.equal(productUnitLabel('LITRE'), 'Litre')
     assert.equal(productUnitLabel('KILOGRAM'), 'Kilogram')
     assert.equal(productStatusLabel('ACTIVE'), 'Active')

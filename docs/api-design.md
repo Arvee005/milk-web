@@ -200,9 +200,9 @@ BillingPeriod inspection/closing and Bill generation are implemented below. Appl
 6) `GET /api/customer/bills`
 - CUSTOMER-only, read-only endpoint. The Customer is resolved from the authenticated User ID; supplied `customerId` is rejected with 400 and never selects records.
 - Returns only bills with `status = ISSUED` and non-null `issuedAt`. DRAFT bills are excluded. The existing Bill database check requires issue metadata for ISSUED rows and no issue metadata for DRAFT rows.
-- Request parameters: `page` (default 0) and `size` (default 20, range 1-100). Results use stable `createdAt DESC, id ASC` ordering and an explicit `CustomerBillPageResponse` page envelope.
+- Request parameters: `page` (default 0) and `size` (default 20, range 1-100). Results use stable `periodStart DESC, createdAt DESC, id ASC` ordering (newest billing month first, changed 2026-10-15 so month-to-month navigation stays in order even when an older month is billed later) and an explicit `CustomerBillPageResponse` page envelope.
 - `CustomerBillResponse` contains bill ID, billing period (`YYYY-MM`), inclusive period dates, total amount, ISSUED status, issue timestamp, and line summaries (record date, slot, description snapshot, quantity, unit-price snapshot, and amount). It excludes customer PII, issuer identity, bill-line IDs, and DailyRecord IDs.
-- Currency is not stored on Bill; the API does not claim a currency and the UI renders the numeric amounts without a currency symbol.
+- Currency is not stored on Bill. The owner confirmed all amounts are INR (docs/financial-policy-decisions.md), so the UI shows ₹; storing a currency code on new financial records is part of the payments work.
 - Page metadata includes `content`, `number`, `size`, `totalElements`, and `totalPages`. Empty results return an empty page. Errors: 400 invalid page/size or supplied customerId, 401 unauthenticated, 403 non-CUSTOMER.
 - Each bill page is loaded first, then its lines are batch-loaded for only those visible bill IDs; this avoids collection-fetch pagination and per-bill line queries.
 - ISSUED means the owner explicitly issued/finalized the bill. It does not mean paid. Payment status is unavailable because no payment ledger or allocation model exists.

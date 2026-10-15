@@ -130,6 +130,25 @@ class BillControllerTest {
     }
 
     @Test
+    void customerBillsAreOrderedByBillingMonthNotGenerationTime() throws Exception {
+        var owner = userService.createUser(phone(), "secret123", UserRole.OWNER);
+        Customer customer = customer("Customer Month Order");
+        // April is generated before January, so creation order and month order disagree.
+        BillResponse april = createBill(owner.getId(), customer, YearMonth.of(2004, 4), true);
+        BillResponse january = createBill(owner.getId(), customer, YearMonth.of(2004, 1), true);
+        BillResponse march = createBill(owner.getId(), customer, YearMonth.of(2004, 3), true);
+        String customerToken = jwtService.generateToken(userService.findByPhone(customer.getPhone()).orElseThrow());
+
+        mockMvc.perform(get("/api/customer/bills")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(april.id().toString()))
+                .andExpect(jsonPath("$.content[1].id").value(march.id().toString()))
+                .andExpect(jsonPath("$.content[2].id").value(january.id().toString()));
+    }
+
+    @Test
     void customerCanPageOnlyTheirIssuedBillsWithLineSummaries() throws Exception {
         var owner = userService.createUser(phone(), "secret123", UserRole.OWNER);
         Customer customer = customer("Customer Bill Viewer");

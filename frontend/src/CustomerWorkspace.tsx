@@ -34,10 +34,11 @@ import {
   billsViewState,
   CUSTOMER_BILL_PAGE_SIZE,
   getCustomerBills,
-  type CustomerBill,
   type CustomerBillPage,
 } from './billsApi'
 import CustomerMonth from './CustomerMonth'
+import BillReceipt from './BillReceipt'
+import { formatRupees } from './money'
 
 type CustomerSection = 'overview' | 'records' | 'subscriptions' | 'bills' | 'profile'
 
@@ -98,10 +99,7 @@ function formatQuantity(value: number) {
 }
 
 function formatAmount(value: number) {
-  return new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
+  return formatRupees(value)
 }
 
 function formatBillingPeriod(period: string) {
@@ -121,52 +119,6 @@ function formatIssueDate(value: string) {
     year: 'numeric',
     timeZone: 'Asia/Kolkata',
   }).format(new Date(value))
-}
-
-function CustomerBillCard({ bill }: { bill: CustomerBill }) {
-  const [expanded, setExpanded] = useState(false)
-  return (
-    <article className="customer-bill-card">
-      <div className="customer-bill-heading">
-        <div>
-          <p className="eyebrow">BILLING PERIOD</p>
-          <h2>{formatBillingPeriod(bill.period)}</h2>
-        </div>
-        <span className="status-pill bill-status">{billStatusLabel(bill.status)}</span>
-      </div>
-      <dl className="customer-bill-summary">
-        <div><dt>Issued</dt><dd>{formatIssueDate(bill.issuedAt)}</dd></div>
-        <div><dt>Total amount</dt><dd>{formatAmount(bill.totalAmount)}</dd></div>
-        <div><dt>Period dates</dt><dd>{formatRecordDate(bill.periodStart)} – {formatRecordDate(bill.periodEnd)}</dd></div>
-      </dl>
-      <button
-        className="bill-details-toggle"
-        type="button"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((value) => !value)}
-      >
-        {expanded ? 'Hide bill details' : `View bill details (${bill.lines.length} items)`}
-      </button>
-      {expanded && (
-        <div className="customer-bill-lines">
-          <h3>Bill items</h3>
-          {bill.lines.map((line, index) => (
-            <article className="customer-bill-line" key={`${line.recordDate}-${line.slot}-${index}`}>
-              <div>
-                <p>{line.description}</p>
-                <span>{formatRecordDate(line.recordDate)} · {line.slot === 'MORNING' ? 'Morning' : 'Evening'}</span>
-              </div>
-              <dl>
-                <div><dt>Quantity</dt><dd>{formatQuantity(line.quantity)}</dd></div>
-                <div><dt>Unit price</dt><dd>{formatAmount(line.unitPrice)}</dd></div>
-                <div><dt>Amount</dt><dd>{formatAmount(line.amount)}</dd></div>
-              </dl>
-            </article>
-          ))}
-        </div>
-      )}
-    </article>
-  )
 }
 
 function CustomerSubscriptionCard({ subscription }: { subscription: CustomerSubscription }) {
@@ -319,6 +271,9 @@ export default function CustomerWorkspace({
   const [billsPage, setBillsPage] = useState(0)
   const [billsLoading, setBillsLoading] = useState(false)
   const [billsError, setBillsError] = useState('')
+  const [selectedBillIndex, setSelectedBillIndex] = useState(0)
+  // When the arrows cross into another page, choose which end of the newly loaded page to show.
+  const pendingBillSelection = useRef<'first' | 'last' | null>(null)
   const todayRequestId = useRef(0)
   const historyRequestId = useRef(0)
   const subscriptionsRequestId = useRef(0)
@@ -440,7 +395,11 @@ export default function CustomerWorkspace({
     setBillsError('')
     try {
       const result = await getCustomerBills(token, billsPage, CUSTOMER_BILL_PAGE_SIZE)
-      if (request === billsRequestId.current) setBills(result)
+      if (request === billsRequestId.current) {
+        setBills(result)
+        setSelectedBillIndex(pendingBillSelection.current === 'last' ? Math.max(0, result.content.length - 1) : 0)
+        pendingBillSelection.current = null
+      }
     } catch (cause) {
       if (request !== billsRequestId.current) return
       if (isUnauthenticatedError(cause)) onSessionExpired()
@@ -470,6 +429,25 @@ export default function CustomerWorkspace({
     setAppliedRange({ fromDate, toDate })
     setAppliedSlot(historySlot)
     setAppliedStatus(historyStatus)
+  }
+
+  // Bills arrive newest month first, so "older" moves forward through the list.
+  function showOlderBill() {
+    if (!bills) return
+    if (selectedBillIndex + 1 < bills.content.length) setSelectedBillIndex(selectedBillIndex + 1)
+    else if (bills.number + 1 < bills.totalPages) {
+      pendingBillSelection.current = 'first'
+      setBillsPage(bills.number + 1)
+    }
+  }
+
+  function showNewerBill() {
+    if (!bills) return
+    if (selectedBillIndex > 0) setSelectedBillIndex(selectedBillIndex - 1)
+    else if (bills.number > 0) {
+      pendingBillSelection.current = 'last'
+      setBillsPage(bills.number - 1)
+    }
   }
 
   const title = activeSection === 'profile'
@@ -685,7 +663,7 @@ export default function CustomerWorkspace({
             <section className="customer-bills" aria-labelledby="customer-bills-title">
               <h2 className="sr-only" id="customer-bills-title">Issued bills</h2>
               <p className="customer-readonly-note">
-                Amounts are in Indian rupees (₹). An issued bill is not a payment receipt; payments are not shown here yet.
+                Use the arrows to move between months. Payments are not shown here yet.
               </p>
               {billsState.status === 'loading' ? (
                 <div className="customer-state" role="status">Loading your issued bills…</div>
@@ -701,29 +679,70 @@ export default function CustomerWorkspace({
                   <p>Bills will appear here after they have been finalized and issued by the dairy owner.</p>
                 </section>
               ) : (
-                <>
-                  <div className="customer-bill-list">
-                    {billsState.page.content.map((bill) => (
-                      <CustomerBillCard key={bill.id} bill={bill} />
-                    ))}
-                  </div>
-                  <div className="records-pagination">
-                    <span>{billsState.page.totalElements} issued bills</span>
-                    <div>
-                      <button
-                        className="secondary-button"
-                        disabled={billsState.page.number <= 0 || billsLoading}
-                        onClick={() => setBillsPage((page) => Math.max(0, page - 1))}
-                      >Previous</button>
-                      <span>Page {billsState.page.number + 1} of {Math.max(1, billsState.page.totalPages)}</span>
-                      <button
-                        className="secondary-button"
-                        disabled={billsState.page.number + 1 >= billsState.page.totalPages || billsLoading}
-                        onClick={() => setBillsPage((page) => page + 1)}
-                      >Next</button>
+                (() => {
+                  const page = billsState.page
+                  const bill = page.content[Math.min(selectedBillIndex, page.content.length - 1)]
+                  const hasOlder = selectedBillIndex + 1 < page.content.length || page.number + 1 < page.totalPages
+                  const hasNewer = selectedBillIndex > 0 || page.number > 0
+                  return (
+                    <div className="bills-layout">
+                      <div className="bills-main">
+                        <div className="month-nav" role="group" aria-label="Choose bill">
+                          <button type="button" onClick={showOlderBill} disabled={!hasOlder || billsLoading} aria-label="Older bill">‹</button>
+                          <output aria-live="polite">{formatBillingPeriod(bill.period)}</output>
+                          <button type="button" onClick={showNewerBill} disabled={!hasNewer || billsLoading} aria-label="Newer bill">›</button>
+                        </div>
+                        <BillReceipt
+                          key={bill.id}
+                          billId={bill.id}
+                          period={bill.period}
+                          periodStart={bill.periodStart}
+                          periodEnd={bill.periodEnd}
+                          status={bill.status}
+                          issuedAt={bill.issuedAt}
+                          totalAmount={bill.totalAmount}
+                          lines={bill.lines}
+                          customerName={profile?.name ?? null}
+                          customerPhone={profile?.phone ?? null}
+                          customerAddress={profile?.address ?? null}
+                        />
+                      </div>
+                      <aside className="bills-list" aria-labelledby="all-bills-title">
+                        <h2 id="all-bills-title">All bills</h2>
+                        <ul>
+                          {page.content.map((item, index) => (
+                            <li key={item.id}>
+                              <button type="button" aria-pressed={index === selectedBillIndex} onClick={() => setSelectedBillIndex(index)}>
+                                <span className="bills-list-period">{formatBillingPeriod(item.period)}</span>
+                                <span className="bills-list-meta">
+                                  <span className="amount-cell">{formatAmount(item.totalAmount)}</span>
+                                  <span className="status-pill bill-status">{billStatusLabel(item.status)}</span>
+                                </span>
+                                <span className="bills-list-issued">Issued {formatIssueDate(item.issuedAt)}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="records-pagination">
+                          <span>{page.totalElements} issued bills</span>
+                          <div>
+                            <button
+                              className="secondary-button"
+                              disabled={page.number <= 0 || billsLoading}
+                              onClick={() => setBillsPage((current) => Math.max(0, current - 1))}
+                            >Previous</button>
+                            <span>Page {page.number + 1} of {Math.max(1, page.totalPages)}</span>
+                            <button
+                              className="secondary-button"
+                              disabled={page.number + 1 >= page.totalPages || billsLoading}
+                              onClick={() => setBillsPage((current) => current + 1)}
+                            >Next</button>
+                          </div>
+                        </div>
+                      </aside>
                     </div>
-                  </div>
-                </>
+                  )
+                })()
               )}
             </section>
           ) : (

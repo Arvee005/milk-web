@@ -11,7 +11,9 @@ import {
   type LoginResponse,
   workspaceForRole,
 } from './authApi'
+import BillReceipt from './BillReceipt'
 import CustomerRegistration from './CustomerRegistration'
+import { formatRupees } from './money'
 import CustomerWorkspace from './CustomerWorkspace'
 import OwnerCustomers from './OwnerCustomers'
 import OwnerDailyRecords from './OwnerDailyRecords'
@@ -100,10 +102,7 @@ function previousMonthInIndia() {
 }
 
 function formatAmount(amount: number) {
-  return new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
+  return formatRupees(amount)
 }
 
 function formatDate(date: string | null) {
@@ -567,7 +566,7 @@ return (
               <div className="card-topline"><span className="card-icon peach">∑</span><span className="quiet-label">BILL TOTAL</span></div>
               <p className="summary-label">RECONCILED AMOUNT</p>
               <h2>{period ? formatAmount(period.chargeableAmount) : '—'}</h2>
-              <p className="summary-foot">Indian rupees (₹)</p>
+              <p className="summary-foot">Total of collected and extra records</p>
             </article>
           </section>
 
@@ -672,20 +671,23 @@ function BillDetail({ bill, onClose }: { bill: Bill; onClose: () => void }) {
   return (
     <section className="bill-detail" aria-label={`Bill details for ${bill.customerName}`}>
       <div className="detail-heading">
-        <div><p className="eyebrow">BILL SNAPSHOT</p><h3>{bill.customerName}</h3>
-          <p>{bill.customerPhone ?? 'No phone'}{bill.customerAddress ? ` · ${bill.customerAddress}` : ''}</p></div>
+        <p className="eyebrow">BILL SNAPSHOT · {bill.customerName}</p>
         <button className="close-detail" onClick={onClose} aria-label="Close bill details">×</button>
       </div>
-      <div className="line-table-wrap">
-        <table className="line-table">
-          <thead><tr><th>DATE</th><th>SLOT</th><th>DESCRIPTION</th><th>QUANTITY</th><th>UNIT PRICE</th><th>AMOUNT</th></tr></thead>
-          <tbody>{bill.lines.map((line) => <tr key={line.id}>
-            <td>{formatDate(line.recordDate)}</td><td>{line.slot}</td><td>{line.description}</td>
-            <td>{line.quantity}</td><td>{formatAmount(line.unitPrice)}</td><td>{formatAmount(line.amount)}</td>
-          </tr>)}</tbody>
-          <tfoot><tr><td colSpan={5}>Bill total</td><td>{formatAmount(bill.totalAmount)}</td></tr></tfoot>
-        </table>
-      </div>
+      <BillReceipt
+        key={bill.id}
+        billId={bill.id}
+        period={bill.period}
+        periodStart={bill.periodStart}
+        periodEnd={bill.periodEnd}
+        status={bill.status}
+        issuedAt={bill.issuedAt}
+        totalAmount={bill.totalAmount}
+        lines={bill.lines}
+        customerName={bill.customerName}
+        customerPhone={bill.customerPhone}
+        customerAddress={bill.customerAddress}
+      />
       <p className="snapshot-note">Values are preserved from the bill snapshot and are not recalculated from current product prices.</p>
     </section>
   )

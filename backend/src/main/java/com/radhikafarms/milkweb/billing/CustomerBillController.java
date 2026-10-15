@@ -40,7 +40,10 @@ public class CustomerBillController {
 
         return customerBillService.listIssuedBills(
                 userDetails.getUserId(),
+                // Newest billing month first, so customers can step from one month to the previous one even when
+                // an older month's bill was generated later.
                 PageRequest.of(page, size, Sort.by(
+                        Sort.Order.desc("periodStart"),
                         Sort.Order.desc("createdAt"),
                         Sort.Order.asc("id"))));
     }

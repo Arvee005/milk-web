@@ -106,9 +106,62 @@ describe('customer bills React view', { concurrency: false }, () => {
     await showBills(fetchWithBills(page([septemberBill])))
 
     assert.ok(await screen.findByRole('heading', { name: 'September 2026' }))
-    assert.ok(screen.getByText('135.00'))
+    assert.ok(screen.getAllByText('₹135.00').length >= 1)
     assert.ok(screen.getAllByText('Issued').length >= 1)
     assert.equal(screen.queryByText(/paid|unpaid/i), null)
+  })
+
+  it('draws the bill as a receipt with the customer details and per-product totals', async () => {
+    await showBills(fetchWithBills(page([septemberBill])))
+
+    const receipt = await screen.findByRole('article', { name: 'September 2026 bill' })
+    await waitFor(() => assert.match(receipt.textContent ?? '', /Synthetic Customer/))
+    assert.match(receipt.textContent ?? '', /9400000000/)
+    assert.match(receipt.textContent ?? '', /Cow milk₹90\.00/)
+    assert.match(receipt.textContent ?? '', /1\.5 L × ₹60\.00 · 1 collection/)
+    assert.match(receipt.textContent ?? '', /Bill total₹135\.00/)
+    assert.match(receipt.textContent ?? '', /Issued 01 Oct 2026/)
+  })
+
+  it('steps between bills with the arrows and the bill list', async () => {
+    await showBills(fetchWithBills(page([octoberBill, septemberBill])))
+    assert.ok(await screen.findByRole('heading', { name: 'October 2026' }))
+    const older = screen.getByRole('button', { name: 'Older bill' }) as HTMLButtonElement
+    const newer = screen.getByRole('button', { name: 'Newer bill' }) as HTMLButtonElement
+    assert.equal(newer.disabled, true)
+
+    fireEvent.click(older)
+    assert.ok(screen.getByRole('heading', { name: 'September 2026' }))
+    assert.equal(older.disabled, true)
+    assert.equal(newer.disabled, false)
+
+    fireEvent.click(newer)
+    assert.ok(screen.getByRole('heading', { name: 'October 2026' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /^September 2026/ }))
+    assert.ok(screen.getByRole('heading', { name: 'September 2026' }))
+    assert.equal(screen.getByRole('button', { name: /^September 2026/ }).getAttribute('aria-pressed'), 'true')
+  })
+
+  it('loads the next page when the arrows reach the end of the current one', async () => {
+    const requestedPages: string[] = []
+    const fetcher: typeof fetch = async (input) => {
+      const requestUrl = String(input)
+      if (requestUrl.endsWith('/customer/me')) return jsonResponse(profile)
+      if (!requestUrl.includes('/customer/bills')) return jsonResponse(page([]))
+      const requestedPage = new URL(requestUrl, 'http://localhost').searchParams.get('page') ?? '0'
+      if (new URL(requestUrl, 'http://localhost').searchParams.get('size') === '10') requestedPages.push(requestedPage)
+      return requestedPage === '0' ? jsonResponse(page([octoberBill], 0, 2)) : jsonResponse(page([septemberBill], 1, 2))
+    }
+    await showBills(fetcher)
+    assert.ok(await screen.findByRole('heading', { name: 'October 2026' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Older bill' }))
+    assert.ok(await screen.findByRole('heading', { name: 'September 2026' }))
+    assert.ok(requestedPages.includes('1'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Newer bill' }))
+    assert.ok(await screen.findByRole('heading', { name: 'October 2026' }))
   })
 
   it('expands and collapses the bill line summary', async () => {

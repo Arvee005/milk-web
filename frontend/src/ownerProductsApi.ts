@@ -1,4 +1,5 @@
 import { apiRequest } from './authApi.ts'
+import { formatRupees } from './money.ts'
 
 export type OwnerProductUnit = 'LITRE' | 'KILOGRAM'
 export type OwnerProductStatus = 'ACTIVE' | 'INACTIVE'
@@ -124,10 +125,7 @@ export async function updateOwnerProduct(
 }
 
 export function formatProductPrice(value: number) {
-  return new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
+  return formatRupees(value)
 }
 
 export function ownerProductErrorMessage(error: unknown) {

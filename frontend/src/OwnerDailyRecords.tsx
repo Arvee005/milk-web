@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { formatRupees } from './money'
 import { isUnauthenticatedError } from './authApi.ts'
 import {
   createOwnerDailyRecord,
@@ -54,10 +55,7 @@ function formatDate(value: string) {
 }
 
 function formatAmount(value: number | null) {
-  return value === null ? '—' : new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
+  return value === null ? '—' : formatRupees(value)
 }
 
 function isChargeable(status: OwnerDailyRecordStatus) {
