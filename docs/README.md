@@ -10,6 +10,7 @@ Structure
 - api-design.md — documented API endpoints, DTOs, validation, and status codes
 - testing.md — testing strategy, how tests are organized and run
 - security.md — authentication/authorization and security considerations
+- design-system.md — colours, fonts, and visual rules for the Radhika Farms look
 - customer-dashboard-plan.md — customer/owner dashboard coverage and remaining gaps
 - financial-policy-decisions.md and payment-domain-design.md — proposed payment/balance domain (not implemented)
 - learning-notes.md — educational notes for concepts used in the project

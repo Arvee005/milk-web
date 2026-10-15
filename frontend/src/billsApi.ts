@@ -49,7 +49,7 @@ export function billsViewState(page: CustomerBillPage | null, loading: boolean, 
 
 export function billErrorMessage(error: unknown) {
   if (error instanceof TypeError) {
-    return 'Unable to connect to Milk Web. Check your connection and try again.'
+    return 'Unable to connect to Radhika Farms. Check your connection and try again.'
   }
   if (error instanceof Error) return error.message
   return 'Could not load your bills.'

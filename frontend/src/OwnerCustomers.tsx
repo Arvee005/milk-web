@@ -231,8 +231,8 @@ export default function OwnerCustomers({
   return (
     <div className="app-shell owner-catalog-shell">
       <aside className="sidebar">
-        <a className="brand" href="/" aria-label="Milk Web home">
-          <span className="brand-mark">m</span><span>milk<span className="brand-light">web</span></span>
+        <a className="brand" href="/" aria-label="Radhika Farms home">
+          <span className="brand-mark" aria-hidden="true">R</span><span>Radhika <span className="brand-light">Farms</span></span>
         </a>
         <div className="workspace-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
@@ -414,7 +414,7 @@ export default function OwnerCustomers({
               </>
             ) : null}
           </section>
-          <footer className="page-footer"><span>Milk Web <b>·</b> Owner workspace</span><span>Customer accounts</span></footer>
+          <footer className="page-footer"><span>Radhika Farms <b>·</b> Owner workspace</span><span>Customer accounts</span></footer>
         </div>
       </main>
     </div>

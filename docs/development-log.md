@@ -912,4 +912,26 @@ Commit: not yet committed (fill in after commit).
   proxy-supplied IPs as hints. Bound in-memory state so the limiter cannot itself become a denial-of-service
   vector.
 
+## Milestone: Redesign phase 1, Radhika Farms look (2026-10-15)
+
+Commit: not yet committed (fill in after commit).
+
+- IMPLEMENTED: new design tokens and fonts (`index.css`), a full rewrite of `App.css` on those tokens, and a new
+  public sign-in page (cocoa hero with milk-can illustration, product marquee, sign-in / create-account tabs,
+  farm story and product lines). See `docs/design-system.md`.
+- IMPLEMENTED: dark mode that follows the device setting. The four time-of-day themes, `TimeTheme.ts`, and
+  `MilkCanMascot.tsx` were removed at the owner's request.
+- IMPLEMENTED: the workspace sidebar became a cocoa header band using CSS only, so the five screen components
+  kept their markup and behaviour. User-facing text now says "Radhika Farms" instead of "Milk Web".
+- Why: the owner chose a dairy-flavoured version of a farm-label style after reviewing an interactive mockup.
+  Text sizes rose from 9–12px to a 17px base with large tap targets, for customers of all ages.
+- Deferred: showing ₹ on every amount changes formatters that tests assert exactly; it moves to phase 3
+  (receipt-style bills).
+- Problems: on phones the "Generate a draft bill" customer dropdown was squeezed by its button; the form now
+  stacks below 640px.
+- Tests: no behaviour changed. `npm test` 78 API + 65 component tests pass; lint clean; build succeeds. Visual
+  check: the app was run locally with seeded data and screenshotted in headless Chrome at 1280px and 390px in
+  light and dark mode (sign-in, sign-up, owner billing, daily records, customers, customer overview, bills,
+  pending account). No page scrolls sideways.
+
 # End of development log (most recent milestones recorded)

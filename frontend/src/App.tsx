@@ -17,8 +17,6 @@ import OwnerCustomers from './OwnerCustomers'
 import OwnerDailyRecords from './OwnerDailyRecords'
 import OwnerProducts from './OwnerProducts'
 import OwnerSubscriptions from './OwnerSubscriptions'
-import { getTimeTheme, type TimeTheme } from './TimeTheme'
-import MilkCanMascot from './MilkCanMascot'
 import './App.css'
 
 type Customer = {
@@ -128,7 +126,6 @@ function formatMonth(period: string) {
 function App() {
   const [session, setSession] = useState<Session>(initialSession)
   const [ownerSection, setOwnerSection] = useState<OwnerSection>('billing')
-  const [theme, setTheme] = useState<TimeTheme>(() => getTimeTheme())
   const token = session.token
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -226,35 +223,6 @@ function App() {
     }
   }, [session.token, session.status])
 
-  // Update the time-of-day visual theme from the user's local clock. The theme
-  // is re-evaluated at least once per minute so it stays correct across
-  // midnight boundaries without needing a page reload.
-  useEffect(() => {
-    let active = true
-    const tick = () => {
-      if (active) setTheme(getTimeTheme())
-    }
-    tick()
-    const timer = window.setInterval(tick, 60_000)
-    return () => {
-      active = false
-      window.clearInterval(timer)
-    }
-  }, [])
-
-  // Sync the active theme to the document root so every element — including the
-  // body, login page, and session states — inherits the time-of-day variables
-  // from a single source instead of relying on per-shell data-theme attributes.
-  // The setAttribute effect re-runs on every theme change; the separate
-  // empty-dependency effect only clears the attribute when App unmounts, so an
-  // ordinary theme change never briefly resets the document theme.
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-  }, [theme])
-  useEffect(() => () => {
-    document.documentElement.removeAttribute('data-theme')
-  }, [])
-
   useEffect(() => {
     if (session.status !== 'authenticated' || session.user.role !== 'OWNER' || ownerSection !== 'billing') return
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodId)) {
@@ -277,7 +245,7 @@ function App() {
       setSession({ status: 'checking', token: result.token, user: null })
     } catch (cause) {
       setError(cause instanceof TypeError
-        ? 'Unable to connect to Milk Web. Check your connection and try again.'
+        ? 'Unable to connect to Radhika Farms. Check your connection and try again.'
         : cause instanceof Error ? cause.message : 'Sign in failed.')
     } finally {
       setLoginLoading(false)
@@ -386,44 +354,67 @@ function App() {
 
   if (session.status === 'anonymous') {
     return (
-      <main className="login-page">
-        <section className="login-card">
-          <div className="brand-mark" aria-hidden="true">m</div>
-          {authView === 'register' ? (
-            <CustomerRegistration onRegistered={completeRegistration} onShowSignIn={() => showAuthView('sign-in')} />
-          ) : (<>
-          <p className="eyebrow">MILK WEB · SECURE ACCOUNT</p>
-          <h1>Your dairy account, in one place.</h1>
-          <p className="login-copy">Sign in with your phone number and password. We’ll take you to the right workspace.</p>
-          <form onSubmit={signIn} className="login-form">
-            <label htmlFor="account-phone">Phone number</label>
-            <input id="account-phone" type="tel" inputMode="numeric" autoComplete="username"
-              pattern="[0-9]{10}" maxLength={10} value={phone}
-              onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
-              aria-describedby="phone-help" required />
-            <span id="phone-help" className="form-hint">Enter the 10-digit phone number on your account.</span>
-            <label htmlFor="account-password">Password</label>
-            <input id="account-password" type="password" autoComplete="current-password" value={password}
-              onChange={(event) => setPassword(event.target.value)} required />
-            {error && <p className="alert error-alert" role="alert">{error}</p>}
-            <button className="primary-button full-button" disabled={loginLoading} aria-busy={loginLoading}>
-              {loginLoading ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
-          <p className="auth-switch">
-            New customer?{' '}
-            <button type="button" className="text-button" onClick={() => showAuthView('register')}>Create an account</button>
-          </p>
-          </>)}
-          <p className="privacy-note">Your session is kept only in this browser tab.</p>
-        </section>
-        <div className="login-art">
-          <span className="art-sun" />
-          <span className="art-hill hill-one" />
-          <span className="art-hill hill-two" />
-          <div className="art-caption"><span>01</span> A simpler way to keep every litre accounted for.</div>
+      <div className="login-page">
+        <header className="login-hero">
+          <div className="login-hero-inner">
+            <div className="login-hero-copy">
+              <p className="eyebrow">Radhika Farms · Family dairy</p>
+              <h1>Fresh milk <span>from our own farm.</span></h1>
+              <p className="login-hero-lede">Collect your cow or buffalo milk each morning and evening. Every litre is recorded, so your bill always matches what you took home.</p>
+            </div>
+            <div className="login-hero-art" aria-hidden="true"><MilkCan /></div>
+          </div>
+        </header>
+        <div className="marquee" aria-hidden="true">
+          <div className="marquee-track">
+            {[0, 1].map((copy) => (
+              <span key={copy}>Cow milk ● Buffalo milk ● Cow ghee ● Buffalo ghee ● Morning &amp; evening ● From our own herd ●</span>
+            ))}
+          </div>
         </div>
-      </main>
+        <main className="login-body">
+          <section className="login-card" aria-label="Your account">
+            <div className="auth-tabs" role="group" aria-label="Sign in or create an account">
+              <button type="button" aria-pressed={authView === 'sign-in'} onClick={() => showAuthView('sign-in')}>Sign in</button>
+              <button type="button" aria-pressed={authView === 'register'} onClick={() => showAuthView('register')}>Create account</button>
+            </div>
+            {authView === 'register' ? (
+              <CustomerRegistration onRegistered={completeRegistration} onShowSignIn={() => showAuthView('sign-in')} />
+            ) : (<>
+              <p className="eyebrow">Welcome back</p>
+              <h2>Sign in to your account.</h2>
+              <p className="login-copy">Use your phone number and password. We’ll take you to the right page.</p>
+              <form onSubmit={signIn} className="login-form">
+                <label htmlFor="account-phone">Phone number</label>
+                <input id="account-phone" type="tel" inputMode="numeric" autoComplete="username"
+                  pattern="[0-9]{10}" maxLength={10} value={phone}
+                  onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))}
+                  aria-describedby="phone-help" required />
+                <span id="phone-help" className="form-hint">The 10-digit number the farm knows you by.</span>
+                <label htmlFor="account-password">Password</label>
+                <input id="account-password" type="password" autoComplete="current-password" value={password}
+                  onChange={(event) => setPassword(event.target.value)} required />
+                {error && <p className="alert error-alert" role="alert">{error}</p>}
+                <button className="primary-button full-button" disabled={loginLoading} aria-busy={loginLoading}>
+                  {loginLoading ? 'Signing in…' : 'Sign in →'}
+                </button>
+              </form>
+            </>)}
+          </section>
+          <section className="login-story" aria-labelledby="farm-story">
+            <h2 id="farm-story">Our cows. Our buffaloes. <em>Your milk.</em></h2>
+            <p>Radhika Farms is a family dairy. The milk you collect comes straight from the animals we raise and care for ourselves, milked fresh for the morning and evening collections.</p>
+            <ul className="product-lines">
+              <li><strong>Cow milk</strong><span>Light and fresh, every morning and evening</span></li>
+              <li><strong>Buffalo milk</strong><span>Rich and creamy, good for curd and tea</span></li>
+              <li><strong>Cow ghee</strong><span>Made at the farm in small batches</span></li>
+              <li><strong>Buffalo ghee</strong><span>Grainy, golden, slow-cooked</span></li>
+            </ul>
+            <p className="privacy-note">Your session is kept only in this browser tab.</p>
+          </section>
+        </main>
+        <footer className="login-footer"><div><span>Radhika Farms</span><span>Fresh milk, honestly counted.</span></div></footer>
+      </div>
     )
   }
 
@@ -506,8 +497,8 @@ function App() {
 return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="/" aria-label="Milk Web home">
-          <span className="brand-mark">m</span><span>milk<span className="brand-light">web</span></span>
+        <a className="brand" href="/" aria-label="Radhika Farms home">
+          <span className="brand-mark" aria-hidden="true">R</span><span>Radhika <span className="brand-light">Farms</span></span>
         </a>
         <div className="workspace-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
@@ -527,7 +518,6 @@ return (
         <header className="topbar">
           <div className="topbar-greeting">
             <div className="breadcrumb">Workspace <span>/</span> Billing</div>
-            <MilkCanMascot theme={theme} label="Milk Web mascot" />
           </div>
           <div className="topbar-right"><span className="today-label">{new Intl.DateTimeFormat('en-IN', {
             dateStyle: 'medium', timeZone: 'Asia/Kolkata',
@@ -577,7 +567,7 @@ return (
               <div className="card-topline"><span className="card-icon peach">∑</span><span className="quiet-label">BILL TOTAL</span></div>
               <p className="summary-label">RECONCILED AMOUNT</p>
               <h2>{period ? formatAmount(period.chargeableAmount) : '—'}</h2>
-              <p className="summary-foot">Currency awaits business confirmation</p>
+              <p className="summary-foot">Indian rupees (₹)</p>
             </article>
           </section>
 
@@ -671,7 +661,7 @@ return (
               </div>
             </div>
           </section>
-          <footer className="page-footer"><span>Milk Web <b>·</b> Owner billing</span><span>All times and business dates follow Asia/Kolkata.</span></footer>
+          <footer className="page-footer"><span>Radhika Farms <b>·</b> Owner billing</span><span>All times and business dates follow Asia/Kolkata.</span></footer>
         </div>
       </main>
     </div>
@@ -698,6 +688,22 @@ function BillDetail({ bill, onClose }: { bill: Bill; onClose: () => void }) {
       </div>
       <p className="snapshot-note">Values are preserved from the bill snapshot and are not recalculated from current product prices.</p>
     </section>
+  )
+}
+
+function MilkCan() {
+  return (
+    <svg viewBox="0 0 220 280" focusable="false">
+      <rect x="88" y="6" width="44" height="18" rx="6" fill="var(--butter)" />
+      <rect x="80" y="20" width="60" height="14" rx="4" fill="var(--on-band)" />
+      <path d="M84 34 h52 l8 34 h-68 z" fill="var(--on-band)" />
+      <path d="M60 66 h100 q18 0 22 18 l10 160 q2 26 -24 26 h-116 q-26 0 -24 -26 l10 -160 q4 -18 22 -18z" fill="var(--on-band)" />
+      <rect x="34" y="128" width="152" height="54" fill="var(--butter)" />
+      <text x="110" y="155" textAnchor="middle" dominantBaseline="central" fontFamily="Fraunces, Georgia, serif" fontWeight="900" fontSize="30" letterSpacing="3" fill="var(--band)">MILK</text>
+      <path d="M42 96 q-26 6 -22 38" stroke="var(--on-band)" strokeWidth="8" fill="none" strokeLinecap="round" />
+      <path d="M178 96 q26 6 22 38" stroke="var(--on-band)" strokeWidth="8" fill="none" strokeLinecap="round" />
+      <rect x="30" y="206" width="160" height="8" fill="var(--sky)" />
+    </svg>
   )
 }
 

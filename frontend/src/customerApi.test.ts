@@ -80,7 +80,7 @@ describe('customer profile API', () => {
     const error = new TypeError('Failed to fetch')
     assert.equal(
       customerProfileErrorMessage(error),
-      'Unable to connect to Milk Web. Check your connection and try again.',
+      'Unable to connect to Radhika Farms. Check your connection and try again.',
     )
   })
 

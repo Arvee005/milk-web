@@ -487,8 +487,8 @@ export default function CustomerWorkspace({
   return (
     <div className="app-shell customer-shell">
       <aside className="sidebar">
-        <a className="brand" href="/" aria-label="Milk Web home">
-          <span className="brand-mark">m</span><span>milk<span className="brand-light">web</span></span>
+        <a className="brand" href="/" aria-label="Radhika Farms home">
+          <span className="brand-mark" aria-hidden="true">R</span><span>Radhika <span className="brand-light">Farms</span></span>
         </a>
         <div className="workspace-label">MY ACCOUNT</div>
         <nav aria-label="Customer navigation">
@@ -525,7 +525,7 @@ export default function CustomerWorkspace({
         <div className="page-content customer-page-content">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">MILK WEB · CUSTOMER</p>
+              <p className="eyebrow">RADHIKA FARMS · CUSTOMER</p>
               <h1>{title}</h1>
               <p className="page-subtitle">
                 {activeSection === 'overview'
@@ -677,7 +677,7 @@ export default function CustomerWorkspace({
             <section className="customer-bills" aria-labelledby="customer-bills-title">
               <h2 className="sr-only" id="customer-bills-title">Issued bills</h2>
               <p className="customer-readonly-note">
-                An issued bill is not a payment receipt. Payment status and currency are not recorded here.
+                Amounts are in Indian rupees (₹). An issued bill is not a payment receipt; payments are not shown here yet.
               </p>
               {billsState.status === 'loading' ? (
                 <div className="customer-state" role="status">Loading your issued bills…</div>
@@ -730,7 +730,7 @@ export default function CustomerWorkspace({
           )}
 
           <footer className="page-footer">
-            <span>Milk Web <b>·</b> Customer account</span>
+            <span>Radhika Farms <b>·</b> Customer account</span>
             <span>Questions? Contact your dairy owner.</span>
           </footer>
         </div>

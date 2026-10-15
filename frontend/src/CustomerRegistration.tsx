@@ -42,7 +42,7 @@ export default function CustomerRegistration({
       onRegistered(result)
     } catch (cause) {
       setError(cause instanceof TypeError
-        ? 'Unable to connect to Milk Web. Check your connection and try again.'
+        ? 'Unable to connect to Radhika Farms. Check your connection and try again.'
         : cause instanceof Error ? cause.message : 'Could not create your account.')
     } finally {
       setSubmitting(false)
@@ -51,8 +51,8 @@ export default function CustomerRegistration({
 
   return (
     <>
-      <p className="eyebrow">MILK WEB · NEW CUSTOMER</p>
-      <h1>Create your customer account.</h1>
+      <p className="eyebrow">NEW CUSTOMER</p>
+      <h2>Create your customer account.</h2>
       <p className="login-copy">
         Use the phone number the dairy knows you by. The owner will approve your account before
         your milk records appear.
