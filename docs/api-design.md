@@ -318,9 +318,28 @@ Notes
 - DTOs are used to decouple API from JPA entities (see ADR-006)
 - Controller paths align with role-based requirements defined in SecurityConfig
 
-## Payment and Balance API Design (PROPOSED; NOT IMPLEMENTED)
+## Payments and Balances (IMPLEMENTED 2026-10-15; see ADR-013)
 
-No payment, allocation, adjustment, account, or balance endpoint currently exists. The following contracts are design proposals only; details and unresolved policy are in [Payment and Balance Domain Design](./payment-domain-design.md) and [ADR-010](./decisions/ADR-010-customer-financial-ledger.md).
+Owner endpoints (OWNER only). Money-changing requests require an `Idempotency-Key` header (8-64 letters, digits, `-`, `_`); repeating it with the same body returns the original result, a different body returns 409.
+
+| Method and path | Body | Result |
+|---|---|---|
+| `POST /api/owner/customers/{customerId}/payments` | `amount` (0.01+, 2 decimals), `method` CASH/UPI, `reference?` (64), `note?` (255, owner only), `receivedOn?` (not future, default today) | 201 `PaymentResponse`: `appliedTo` [{billId, period, amount}], `keptAsCredit`, `account` {amountDue, credit} |
+| `POST /api/owner/payments/{paymentId}/reversal` | `reason` | 201 `ReversalResponse` with `takenBack`; repeating returns the same reversal; 409 if the money was already returned |
+| `POST /api/owner/customers/{customerId}/adjustments` | `direction` CREDIT/DEBIT, `amount`, `reason`, `billId?` | 201; DEBIT needs a bill (400 otherwise); a bill CREDIT larger than what is owed splits, with the excess held as account credit |
+| `POST /api/owner/customers/{customerId}/refunds` | `amount`, `method`, `reason`, `refundedOn?` | 201; 409 if more than the credit held |
+| `GET /api/owner/customers/{customerId}/account` | | amountDue, credit, totalBilled, totalReceived, bills newest first with status PAID/PART_PAID/UNPAID and payment-history entries |
+| `GET /api/owner/customers/{customerId}/transactions?limit=100` | | Payments, reversals, refunds, credits and charges, newest first (limit 1-500) |
+| `GET /api/owner/accounts` | | Customers who owe money or hold credit, largest amount owed first |
+| `GET /api/owner/billing-periods/{YYYY-MM}/balances` | | Every issued bill in the month with its payment status |
+
+Customer endpoints (CUSTOMER only, own data only; a supplied `customerId` returns 400): `GET /api/customer/account` and `GET /api/customer/transactions` (owner notes are never included).
+
+Errors: 400 validation or missing key, 401 unauthenticated, 403 wrong role, 404 unknown customer/bill/payment, 409 rule conflict.
+
+### Original proposal (kept for reference)
+
+The contracts below were the earlier design proposal; the implemented API above replaces them where they differ (allocation is automatic, oldest bill first). Details are in [Payment and Balance Domain Design](./payment-domain-design.md) and [ADR-010](./decisions/ADR-010-customer-financial-ledger.md).
 
 Recommended owner operations, all under `/api/owner/**` and OWNER-only:
 

@@ -990,4 +990,48 @@ Commit: not yet committed (fill in after commit).
   backend 206 tests pass; lint clean; build succeeds. Screenshots with seeded data checked at laptop and phone
   sizes in light and dark mode.
 
+## Milestone: Payment ledger backend (2026-10-15)
+
+Commit: not yet committed (fill in after commit).
+
+- IMPLEMENTED: Flyway `V4__create_payment_ledger.sql` (new tables only) and the `ledger` package: entities,
+  repositories, `LedgerService`, owner and customer controllers, exception handler. Bill issuing now applies any
+  held credit to the new bill. See ADR-013 and the API table in `api-design.md`.
+- Owner rules implemented exactly as approved: oldest bill first, leftover kept as credit and applied to the next
+  bill automatically, refunds limited to credit, append-only corrections with reasons, INR, Cash/UPI.
+- Found and fixed before release: the CORS allow-list did not include `Idempotency-Key`, so the browser would have
+  blocked every payment request in production.
+- Verification: the concurrency test fails when the customer lock is removed (money applied twice), proving the
+  lock is what protects balances. PostgreSQL 16 test applies V1-V4 and Hibernate validation passes.
+- Problems: Testcontainers 1.19.8 cannot talk to Docker Desktop 29 by default (old API version, socket path);
+  environment variables documented in `testing.md` work around it without changing dependencies.
+- Interview takeaway: immutable money facts plus explicit allocations, derived balances, per-account locking, and
+  idempotency keys for retries.
+
+## Milestone: Payment screens (2026-10-15)
+
+Commit: not yet committed (fill in after commit).
+
+- IMPLEMENTED (owner Billing): month totals (billed, received, still owed), Unpaid / Part paid / Paid filters,
+  a Payment column with status and amount due, and a "Customers with balances" table. Opening an issued bill
+  shows the receipt with payments and balance next to `OwnerBillPayments.tsx`: record payment (live preview of
+  which bills it clears and what becomes credit), adjust this bill (credit or extra charge with a reason),
+  return credit (only when credit exists), and history with "Correct this payment".
+- IMPLEMENTED (customer): Overview shows Balance due (or Credit) with a link to the latest bill; Bills shows
+  each receipt's payments, balance and a Paid in full stamp, payment status in the bill list, and a Payments
+  history. If the account cannot load, bills still show without any payment claim.
+- `ledgerApi.ts`: typed client, response checks, and `previewPayment`, which uses the server's oldest-first rule
+  in paise so the preview matches exactly. Each save sends an `Idempotency-Key`; the key is kept after a failed
+  save and replaced after a successful one, so a retry after a network error cannot record money twice.
+- Owner bills page size raised from 10 to 50 so the filters see a whole month on one page.
+- Tests: `ledgerApi.test.ts` (9), `ownerBillPayments.component.test.tsx` (5), two customer overview balance
+  tests, one receipt payment-status test. Frontend 101 API + 84 component tests pass; lint clean; build
+  succeeds. End-to-end against the local backend: 10 scripted checks pass (overpayment to credit, repeated key,
+  part payment, ₹30 credit, refund limit, customer sees only own account without owner notes, customer cannot
+  record payments). Screenshots checked at laptop and phone sizes, light and dark.
+- Known limit: on phones the Payment column is reached by scrolling the bills table sideways.
+- Rollback note: once V4 has run, older code refuses to start because Flyway sees an applied migration it does
+  not know. To roll back, deploy the older commit with `SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS=*:missing` set
+  on Render; the new tables are simply ignored.
+
 # End of development log (most recent milestones recorded)

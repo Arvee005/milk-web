@@ -39,6 +39,7 @@ import {
 import CustomerMonth from './CustomerMonth'
 import BillReceipt from './BillReceipt'
 import { formatRupees } from './money'
+import { billPaymentStatusLabel, getCustomerAccount, getCustomerTransactions, type Account, type Transaction } from './ledgerApi'
 
 type CustomerSection = 'overview' | 'records' | 'subscriptions' | 'bills' | 'profile'
 
@@ -272,6 +273,8 @@ export default function CustomerWorkspace({
   const [billsLoading, setBillsLoading] = useState(false)
   const [billsError, setBillsError] = useState('')
   const [selectedBillIndex, setSelectedBillIndex] = useState(0)
+  const [account, setAccount] = useState<Account | null>(null)
+  const [payments, setPayments] = useState<Transaction[] | null>(null)
   // When the arrows cross into another page, choose which end of the newly loaded page to show.
   const pendingBillSelection = useRef<'first' | 'last' | null>(null)
   const todayRequestId = useRef(0)
@@ -408,6 +411,20 @@ export default function CustomerWorkspace({
       if (request === billsRequestId.current) setBillsLoading(false)
     }
   }, [billsPage, onSessionExpired, token])
+
+  // Payment status for the receipts. If it cannot load, bills still show, without any payment claims.
+  useEffect(() => {
+    if (activeSection !== 'bills') return
+    let active = true
+    Promise.all([getCustomerAccount(token), getCustomerTransactions(token)])
+      .then(([nextAccount, nextPayments]) => {
+        if (!active) return
+        setAccount(nextAccount)
+        setPayments(nextPayments)
+      })
+      .catch((cause: unknown) => { if (active && isUnauthenticatedError(cause)) onSessionExpired() })
+    return () => { active = false }
+  }, [activeSection, onSessionExpired, token])
 
   useEffect(() => {
     if (activeSection !== 'bills') return
@@ -663,7 +680,7 @@ export default function CustomerWorkspace({
             <section className="customer-bills" aria-labelledby="customer-bills-title">
               <h2 className="sr-only" id="customer-bills-title">Issued bills</h2>
               <p className="customer-readonly-note">
-                Use the arrows to move between months. Payments are not shown here yet.
+                Use the arrows to move between months. Your payments are listed beside your bills.
               </p>
               {billsState.status === 'loading' ? (
                 <div className="customer-state" role="status">Loading your issued bills…</div>
@@ -705,6 +722,7 @@ export default function CustomerWorkspace({
                           customerName={profile?.name ?? null}
                           customerPhone={profile?.phone ?? null}
                           customerAddress={profile?.address ?? null}
+                          balance={account?.bills.find((balance) => balance.billId === bill.id) ?? null}
                         />
                       </div>
                       <aside className="bills-list" aria-labelledby="all-bills-title">
@@ -716,7 +734,12 @@ export default function CustomerWorkspace({
                                 <span className="bills-list-period">{formatBillingPeriod(item.period)}</span>
                                 <span className="bills-list-meta">
                                   <span className="amount-cell">{formatAmount(item.totalAmount)}</span>
-                                  <span className="status-pill bill-status">{billStatusLabel(item.status)}</span>
+                                  {(() => {
+                                    const itemBalance = account?.bills.find((balance) => balance.billId === item.id)
+                                    return itemBalance
+                                      ? <span className={`status-pill pay-${itemBalance.status.toLowerCase()}`}>{billPaymentStatusLabel(itemBalance.status)}</span>
+                                      : <span className="status-pill bill-status">{billStatusLabel(item.status)}</span>
+                                  })()}
                                 </span>
                                 <span className="bills-list-issued">Issued {formatIssueDate(item.issuedAt)}</span>
                               </button>
@@ -739,6 +762,30 @@ export default function CustomerWorkspace({
                             >Next</button>
                           </div>
                         </div>
+                        {payments && (
+                          <section className="bills-payments" aria-labelledby="payments-title">
+                            <h2 id="payments-title">Payments</h2>
+                            {payments.length === 0 ? <p className="muted">No payments recorded yet.</p> : (
+                              <ul>
+                                {payments.map((entry) => (
+                                  <li key={entry.id}>
+                                    <span className="receipt-line">
+                                      <strong>{entry.type === 'PAYMENT' ? 'Payment received' : entry.type === 'PAYMENT_REVERSAL'
+                                        ? 'Payment corrected' : entry.type === 'REFUND' ? 'Money returned to you'
+                                        : entry.type === 'CREDIT' ? 'Credit' : 'Extra charge'}</strong>
+                                      <span className={entry.reversed ? 'money-reversed' : 'amount-cell'}>{formatAmount(Math.abs(entry.amount))}</span>
+                                    </span>
+                                    <span className="muted">
+                                      {formatRecordDate(entry.date)}
+                                      {entry.method ? ` · ${entry.method === 'UPI' ? 'UPI' : 'Cash'}` : ''}
+                                      {entry.reason ? ` · ${entry.reason}` : ''}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </section>
+                        )}
                       </aside>
                     </div>
                   )

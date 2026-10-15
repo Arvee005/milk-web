@@ -75,7 +75,9 @@ public class SecurityConfig {
                 "Content-Type",
                 "Accept",
                 "Origin",
-                "X-Requested-With"));
+                "X-Requested-With",
+                // Sent with every money-changing request so a repeated tap cannot record it twice.
+                "Idempotency-Key"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
 

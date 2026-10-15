@@ -52,6 +52,7 @@ type Options = {
   records?: (month: string) => Promise<CustomerDailyRecord[]>
   bills?: CustomerBill[]
   joinDate?: string | null
+  account?: { amountDue: number; credit: number } | 'error'
 }
 
 function show(options: Options = {}) {
@@ -63,6 +64,10 @@ function show(options: Options = {}) {
     return options.records ? options.records(month) : month === '2026-10' ? october : month === '2026-09' ? september : []
   }
   const loadBills = async () => billPage(options.bills ?? [bill])
+  const loadAccount = async () => {
+    if (options.account === 'error' || options.account === undefined) throw new Error('No account in this test')
+    return { customerId: 'c', customerName: 'A', currency: 'INR', totalBilled: 0, totalReceived: 0, bills: [], ...options.account }
+  }
   render(createElement(CustomerMonth, {
     token: 'token',
     today: TODAY,
@@ -71,6 +76,7 @@ function show(options: Options = {}) {
     onOpenBills: () => { billsOpened += 1 },
     loadRecords: loadRecords as never,
     loadBills: loadBills as never,
+    loadAccount: loadAccount as never,
   }))
   return { requestedMonths, billsOpened: () => billsOpened, expired: () => expired }
 }
@@ -130,6 +136,22 @@ describe('customer month view', { concurrency: false }, () => {
     assert.match(document.body.textContent ?? '', /₹2,730\.00/)
     fireEvent.click(screen.getByRole('button', { name: 'See bill' }))
     assert.equal(view.billsOpened(), 1)
+  })
+
+  it('shows the balance due when the account is available', async () => {
+    const view = show({ account: { amountDue: 1110, credit: 0 } })
+    assert.ok(await screen.findByText('Balance due'))
+    assert.match(document.body.textContent ?? '', /₹1,110\.00/)
+    assert.match(document.body.textContent ?? '', /Latest: September 2026 ₹2,730\.00/)
+    fireEvent.click(screen.getByRole('button', { name: 'See bill' }))
+    assert.equal(view.billsOpened(), 1)
+  })
+
+  it('shows credit instead when nothing is owed', async () => {
+    show({ account: { amountDue: 0, credit: 625 } })
+    assert.ok(await screen.findByText('Credit on your account'))
+    assert.match(document.body.textContent ?? '', /₹625\.00/)
+    assert.match(document.body.textContent ?? '', /Used on your next bill/)
   })
 
   it('says when no bill has been issued yet', async () => {

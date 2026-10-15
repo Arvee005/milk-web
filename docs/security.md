@@ -67,7 +67,13 @@ Bill access (IMPLEMENTED)
 - Customer DTOs omit customer PII snapshots, owner/issuer identifiers, JPA relations, bill-line IDs, and source DailyRecord IDs. Only the bill summary and immutable line values needed for customer review are exposed.
 - `ISSUED` is not a paid/unpaid signal. No payment or balance data is returned or inferred.
 
-Payment and balance (DESIGN ONLY; NOT IMPLEMENTED)
+Payments and balances (IMPLEMENTED 2026-10-15; see ADR-013)
+- Only OWNER can record payments, reversals, adjustments and refunds; the recorder is always the signed-in owner. Customers can only read their own account and history; a supplied `customerId` is rejected; owner notes and recorder identities are never returned to customers.
+- Every money write locks the customer row first, so concurrent entries cannot apply the same credit twice (tested on H2 and PostgreSQL; the H2 test fails if the lock is removed).
+- `Idempotency-Key` makes retried or double-tapped requests safe; the header is in the CORS allow-list.
+- Rows are never updated or deleted by the application; database checks enforce positive amounts, INR, Cash/UPI and credit-only account adjustments.
+
+Payment and balance (original design notes, superseded where they differ)
 - No endpoint currently records payments, allocations, adjustments, or returns a customer balance. The OWNER/CUSTOMER rules below are proposals, not active routes.
 - Proposed money-changing operations (receipt, allocation/release, adjustment) require OWNER and derive the actor from the authenticated principal. Client-supplied `recordedBy`, customer identity, or balance is never trusted.
 - Proposed customer reads derive Customer through authenticated User ID and constrain every account, bill, allocation, and statement query to that Customer. A supplied customer ID must be rejected; an out-of-scope bill ID must not disclose another account.

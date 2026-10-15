@@ -26,3 +26,4 @@ Current authentication and frontend decisions:
 - ADR-001 — backend JWT authentication
 - ADR-009 — browser login, tab-scoped token session, and owner workspace protection
 - ADR-012 — public customer self-registration with owner approval (PENDING status)
+- ADR-013 — payment ledger with automatic oldest-first allocation

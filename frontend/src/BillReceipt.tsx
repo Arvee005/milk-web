@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { groupBillLines, type ReceiptLine } from './receiptLines'
+import type { BillBalance, BillLedgerEntry } from './ledgerApi'
 import { formatRupees } from './money'
 
 export type BillReceiptProps = {
@@ -14,6 +15,28 @@ export type BillReceiptProps = {
   customerName: string | null
   customerPhone: string | null
   customerAddress?: string | null
+  /** Payment status from the ledger, when known. Without it the receipt makes no claim about payment. */
+  balance?: Pick<BillBalance, 'status' | 'due' | 'entries'> | null
+}
+
+const METHOD_LABELS = { CASH: 'Cash', UPI: 'UPI' } as const
+
+function entryLabel(entry: BillLedgerEntry) {
+  const on = shortDate(entry.date)
+  switch (entry.type) {
+    case 'PAYMENT': return `Paid ${on}${entry.method ? ` · ${METHOD_LABELS[entry.method]}` : ''}`
+    case 'CREDIT_APPLIED': return `Credit applied ${on}`
+    case 'PAYMENT_REVERSED': return `Payment corrected ${on}`
+    case 'ADJUSTMENT_CREDIT': return `Credit · ${entry.reason ?? on}`
+    case 'ADJUSTMENT_CHARGE': return `Extra charge · ${entry.reason ?? on}`
+  }
+}
+
+/** Shown as the effect on what is still owed: payments and credits lower it, charges and corrections raise it. */
+function entryEffect(entry: BillLedgerEntry) {
+  const lowersDue = entry.type === 'PAYMENT' || entry.type === 'CREDIT_APPLIED' || entry.type === 'ADJUSTMENT_CREDIT'
+  const value = Math.abs(entry.amount)
+  return (lowersDue ? '−' : '+') + formatRupees(value)
 }
 
 const IST = 'Asia/Kolkata'
@@ -79,10 +102,31 @@ export default function BillReceipt(props: BillReceiptProps) {
       </ul>
       <div className="receipt-rule" />
       <p className="receipt-line receipt-total"><span>Bill total</span><span>{formatRupees(props.totalAmount)}</span></p>
+      {props.balance && (
+        <>
+          {props.balance.entries.length > 0 && (
+            <ul className="receipt-payments" aria-label="Payments and adjustments">
+              {props.balance.entries.map((entry, index) => (
+                <li className="receipt-line" key={`${entry.type}-${entry.date}-${index}`}>
+                  <span>{entryLabel(entry)}</span><span>{entryEffect(entry)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="receipt-rule" />
+          <p className={`receipt-line receipt-balance ${props.balance.due > 0 ? 'owed' : 'settled'}`}>
+            <span>{props.balance.due > 0 ? 'Balance due' : 'Balance'}</span><span>{formatRupees(props.balance.due)}</span>
+          </p>
+        </>
+      )}
       <p className="receipt-stamp-row">
-        <span className={`receipt-stamp ${props.status === 'ISSUED' ? 'issued' : 'draft'}`}>
-          {props.status === 'ISSUED' && props.issuedAt ? `Issued ${issueDate(props.issuedAt)}` : 'Draft · not issued'}
-        </span>
+        {props.balance?.status === 'PAID' ? (
+          <span className="receipt-stamp issued">Paid in full</span>
+        ) : (
+          <span className={`receipt-stamp ${props.status !== 'ISSUED' ? 'draft' : props.balance ? 'owed' : 'issued'}`}>
+            {props.status === 'ISSUED' && props.issuedAt ? `Issued ${issueDate(props.issuedAt)}` : 'Draft · not issued'}
+          </span>
+        )}
       </p>
       <button className="bill-details-toggle" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
         {expanded ? 'Hide bill details' : `View bill details (${props.lines.length} items)`}
@@ -109,7 +153,9 @@ export default function BillReceipt(props: BillReceiptProps) {
           </div>
         </div>
       )}
-      <p className="receipt-note">Amounts are in Indian rupees. This bill is not a payment receipt.</p>
+      <p className="receipt-note">
+        {props.balance ? 'Amounts are in Indian rupees.' : 'Amounts are in Indian rupees. This bill is not a payment receipt.'}
+      </p>
     </article>
   )
 }

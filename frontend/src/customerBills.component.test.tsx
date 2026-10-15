@@ -164,6 +164,39 @@ describe('customer bills React view', { concurrency: false }, () => {
     assert.ok(await screen.findByRole('heading', { name: 'October 2026' }))
   })
 
+  it('shows payment status on the receipt and the payment history when the account loads', async () => {
+    const fetcher: typeof fetch = async (input) => {
+      const requestUrl = String(input)
+      if (requestUrl.endsWith('/customer/me')) return jsonResponse(profile)
+      if (requestUrl.includes('/customer/account')) {
+        return jsonResponse({
+          customerId: 'customer-id', customerName: 'Synthetic Customer', currency: 'INR', amountDue: 0, credit: 0,
+          totalBilled: 135, totalReceived: 135,
+          bills: [{
+            billId: 'september-bill', customerId: 'customer-id', customerName: 'Synthetic Customer', period: '2026-09',
+            periodStart: '2026-09-01', issuedAt: '2026-10-01T10:30:00Z', billTotal: 135, charges: 0, credits: 0,
+            amountToPay: 135, paid: 135, due: 0, status: 'PAID',
+            entries: [{ type: 'PAYMENT', date: '2026-10-05', method: 'UPI', amount: 135, reason: null }],
+          }],
+        })
+      }
+      if (requestUrl.includes('/customer/transactions')) {
+        return jsonResponse([{ id: 't1', type: 'PAYMENT', date: '2026-10-05', recordedAt: '2026-10-05T05:00:00Z',
+          amount: 135, method: 'UPI', reference: null, reason: null, note: null, billId: null, billPeriod: null,
+          paymentId: 't1', reversed: false }])
+      }
+      return jsonResponse(page([septemberBill]))
+    }
+    await showBills(fetcher)
+
+    const receipt = await screen.findByRole('article', { name: 'September 2026 bill' })
+    await waitFor(() => assert.match(receipt.textContent ?? '', /Paid in full/))
+    assert.match(receipt.textContent ?? '', /Paid 05 Oct 2026 · UPI−₹135\.00/)
+    assert.match(receipt.textContent ?? '', /Balance₹0\.00/)
+    const payments = screen.getByRole('heading', { name: 'Payments' }).parentElement?.textContent ?? ''
+    assert.match(payments, /Payment received₹135\.00/)
+  })
+
   it('expands and collapses the bill line summary', async () => {
     await showBills(fetchWithBills(page([septemberBill])))
 

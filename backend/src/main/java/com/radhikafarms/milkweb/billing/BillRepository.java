@@ -18,6 +18,11 @@ public interface BillRepository extends JpaRepository<Bill, UUID> {
 
     Optional<Bill> findByBillingPeriod_IdAndCustomer_Id(UUID billingPeriodId, UUID customerId);
 
+    /** Issued bills for a customer, oldest billing month first: the order credit is applied in. */
+    List<Bill> findByCustomer_IdAndStatusOrderByPeriodStartAscCreatedAtAsc(UUID customerId, BillStatus status);
+
+    List<Bill> findByPeriodStartAndStatusOrderByCustomerNameSnapshotAsc(LocalDate periodStart, BillStatus status);
+
     @EntityGraph(attributePaths = "lines")
     @Query("select b from Bill b where b.id = :billId")
     Optional<Bill> findByIdWithLines(@Param("billId") UUID billId);

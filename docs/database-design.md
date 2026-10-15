@@ -175,10 +175,10 @@ Important business/data-design rule
 - **IMPLEMENTED:** DailyRecord snapshots unit_price at the time of the recorded supply and stores its calculated amount. Future Bills must not recalculate historical records from current Product.price.
 - **IMPLEMENTED:** BillingPeriod provides calendar-month OPEN/CLOSED state and a protected reconciliation summary.
 - **IMPLEMENTED:** Bill generation from a closed period into an immutable DRAFT snapshot and separate issue transition.
-- **PROPOSED / NOT IMPLEMENTED:** Receipt, allocation, credit/debit adjustment, and derived account/bill balances; see [Payment and Balance Domain Design](./payment-domain-design.md).
+- **IMPLEMENTED (V4, 2026-10-15):** `payments`, `payment_reversals`, `account_adjustments`, `refunds`, and `bill_allocations`, all append-only, with balances derived from them. See [ADR-013](./decisions/ADR-013-payment-ledger.md).
 
 Product price/currency note
-- No currency field or currency configuration is implemented. INR is an unconfirmed inference in earlier project notes, not a verified business rule. Confirm the operating and historical Bill currency before implementing financial behavior.
+- The owner confirmed INR for all amounts (2026-10-15). The new ledger tables store `currency = 'INR'` with a database check; existing bill tables have no currency column and are treated as INR.
 
 Indexes and performance
 - Current model includes unique indexes/constraints for user phone, customer user_id, product name, and DailyRecord customer/product/date/slot.

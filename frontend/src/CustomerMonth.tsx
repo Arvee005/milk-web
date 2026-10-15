@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isUnauthenticatedError } from './authApi'
 import { getCustomerBills, type CustomerBill } from './billsApi'
+import { getCustomerAccount, type Account } from './ledgerApi'
 import { dailyRecordErrorMessage, dailyRecordStatusLabel, type CustomerDailyRecord } from './dailyRecordsApi'
 import {
   calendarCells,
@@ -19,6 +20,7 @@ type CustomerMonthProps = {
   onOpenBills: () => void
   loadRecords?: typeof getCustomerMonthRecords
   loadBills?: typeof getCustomerBills
+  loadAccount?: typeof getCustomerAccount
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -54,6 +56,7 @@ export default function CustomerMonth({
   onOpenBills,
   loadRecords = getCustomerMonthRecords,
   loadBills = getCustomerBills,
+  loadAccount = getCustomerAccount,
 }: CustomerMonthProps) {
   const currentMonth = monthOf(today)
   // The calendar starts at the month the customer joined, or a year back if the join date is unknown.
@@ -64,6 +67,7 @@ export default function CustomerMonth({
   const [error, setError] = useState('')
   const [selectedDate, setSelectedDate] = useState(today)
   const [latestBill, setLatestBill] = useState<CustomerBill | null | undefined>(undefined)
+  const [account, setAccount] = useState<Account | null>(null)
   const requestId = useRef(0)
 
   const load = useCallback(async (target: Month) => {
@@ -99,6 +103,15 @@ export default function CustomerMonth({
     return () => { active = false }
   }, [loadBills, onSessionExpired, token])
 
+  useEffect(() => {
+    let active = true
+    // The balance is extra information; without it the box falls back to the latest bill.
+    loadAccount(token)
+      .then((result) => { if (active) setAccount(result) })
+      .catch((cause: unknown) => { if (active && isUnauthenticatedError(cause)) onSessionExpired() })
+    return () => { active = false }
+  }, [loadAccount, onSessionExpired, token])
+
   function goTo(target: Month) {
     setMonth(target)
     setRecords([])
@@ -112,6 +125,8 @@ export default function CustomerMonth({
   const selectedRecords = selected && selected.kind === 'day' ? selected.records : []
   const amount = rupees(summary.amount)
   const bill = latestBill ? rupees(latestBill.totalAmount) : null
+  const showCredit = account !== null && account.amountDue === 0 && account.credit > 0
+  const balance = account ? rupees(showCredit ? account.credit : account.amountDue) : null
   const shortMonth = monthName(month).split(' ')[0]
 
   return (
@@ -139,15 +154,26 @@ export default function CustomerMonth({
           <span className="month-big">{loading ? '—' : <>{amount.whole}<small>{amount.paise}</small></>}</span>
           <span className="month-note">{isCurrent ? 'Billed after the month ends' : 'From your recorded collections'}</span>
         </div>
-        <div>
-          <span className="eyebrow">Latest bill</span>
-          <span className="month-big">{bill ? <>{bill.whole}<small>{bill.paise}</small></> : '—'}</span>
-          <span className="month-note">
-            {latestBill === undefined ? 'Loading…' : latestBill
-              ? <>{monthName(latestBill.period)} · <button type="button" className="text-button" onClick={onOpenBills}>See bill</button></>
-              : 'No bills issued yet'}
-          </span>
-        </div>
+        {account && balance ? (
+          <div className={account.amountDue > 0 ? 'month-owed' : 'month-settled'}>
+            <span className="eyebrow">{showCredit ? 'Credit on your account' : 'Balance due'}</span>
+            <span className="month-big">{balance.whole}<small>{balance.paise}</small></span>
+            <span className="month-note">
+              {showCredit ? 'Used on your next bill' : account.amountDue > 0 ? 'From your issued bills' : latestBill ? 'All bills paid' : 'Nothing to pay'}
+              {latestBill && <> · Latest: {monthName(latestBill.period)} {bill?.whole}{bill?.paise} · <button type="button" className="text-button" onClick={onOpenBills}>See bill</button></>}
+            </span>
+          </div>
+        ) : (
+          <div>
+            <span className="eyebrow">Latest bill</span>
+            <span className="month-big">{bill ? <>{bill.whole}<small>{bill.paise}</small></> : '—'}</span>
+            <span className="month-note">
+              {latestBill === undefined ? 'Loading…' : latestBill
+                ? <>{monthName(latestBill.period)} · <button type="button" className="text-button" onClick={onOpenBills}>See bill</button></>
+                : 'No bills issued yet'}
+            </span>
+          </div>
+        )}
       </div>
 
       {error ? (

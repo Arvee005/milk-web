@@ -37,6 +37,18 @@ class CorsConfigurationTest {
     }
 
     @Test
+    void shouldAllowTheIdempotencyKeyHeaderUsedByPaymentRequests() throws Exception {
+        mockMvc.perform(options("/api/owner/customers/00000000-0000-0000-0000-000000000001/payments")
+        .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization,Content-Type,Idempotency-Key"))
+        .andExpect(status().isOk())
+        .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"))
+        .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                org.hamcrest.Matchers.containsStringIgnoringCase("Idempotency-Key")));
+    }
+
+    @Test
     void shouldRejectPreflightFromDisallowedOrigin() throws Exception {
         // Spring Security returns 403 for an unauthenticated preflight from a
         // disallowed origin rather than silently passing it through.

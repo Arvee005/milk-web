@@ -8,6 +8,7 @@ import com.radhikafarms.milkweb.customer.CustomerRepository;
 import com.radhikafarms.milkweb.customer.exception.CustomerNotFoundException;
 import com.radhikafarms.milkweb.dailyrecord.DailyRecord;
 import com.radhikafarms.milkweb.dailyrecord.DailyRecordRepository;
+import com.radhikafarms.milkweb.ledger.LedgerService;
 import com.radhikafarms.milkweb.user.User;
 import com.radhikafarms.milkweb.user.UserRepository;
 import org.springframework.data.domain.Page;
@@ -34,6 +35,7 @@ public class BillService {
     private final DailyRecordRepository dailyRecordRepository;
     private final UserRepository userRepository;
     private final Clock businessClock;
+    private final LedgerService ledgerService;
 
     public BillService(
             BillRepository billRepository,
@@ -41,7 +43,8 @@ public class BillService {
             CustomerRepository customerRepository,
             DailyRecordRepository dailyRecordRepository,
             UserRepository userRepository,
-            Clock businessClock
+            Clock businessClock,
+            LedgerService ledgerService
     ) {
         this.billRepository = billRepository;
         this.billingPeriodRepository = billingPeriodRepository;
@@ -49,6 +52,7 @@ public class BillService {
         this.dailyRecordRepository = dailyRecordRepository;
         this.userRepository = userRepository;
         this.businessClock = businessClock;
+        this.ledgerService = ledgerService;
     }
 
     @Transactional
@@ -111,6 +115,8 @@ public class BillService {
             User owner = userRepository.getReferenceById(ownerUserId);
             bill.issue(owner, Instant.now(businessClock));
             billRepository.flush();
+            // Credit the customer already holds (an advance or an overpayment) is applied to the new bill at once.
+            ledgerService.applyCreditAfterBillIssued(bill.getCustomer().getId(), bill.getId());
         }
         return toResponse(billRepository.findByIdWithLines(billId).orElseThrow());
     }

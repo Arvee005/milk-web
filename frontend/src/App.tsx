@@ -13,6 +13,15 @@ import {
 } from './authApi'
 import BillReceipt from './BillReceipt'
 import CustomerRegistration from './CustomerRegistration'
+import OwnerBillPayments from './OwnerBillPayments'
+import {
+  billPaymentStatusLabel,
+  getAccountsWithBalances,
+  getPeriodBalances,
+  type AccountSummary,
+  type BillBalance,
+  type BillPaymentStatus,
+} from './ledgerApi'
 import { formatRupees } from './money'
 import CustomerWorkspace from './CustomerWorkspace'
 import OwnerCustomers from './OwnerCustomers'
@@ -73,7 +82,8 @@ type Page<T> = {
   number: number
 }
 
-const PAGE_SIZE = 10
+// A small dairy has well under 50 bills a month, so filters below see the whole month on one page.
+const PAGE_SIZE = 50
 type OwnerSection = 'billing' | 'daily-records' | 'customers' | 'products' | 'subscriptions'
 
 type Session =
@@ -137,6 +147,9 @@ function App() {
   const [period, setPeriod] = useState<BillingPeriod | null>(null)
   const [customers, setCustomers] = useState<Customer[]>([])
   const [bills, setBills] = useState<Page<Bill> | null>(null)
+  const [balances, setBalances] = useState<Record<string, BillBalance>>({})
+  const [accounts, setAccounts] = useState<AccountSummary[]>([])
+  const [payFilter, setPayFilter] = useState<'ALL' | BillPaymentStatus>('ALL')
   const [customerId, setCustomerId] = useState('')
   const [page, setPage] = useState(0)
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null)
@@ -151,6 +164,9 @@ function App() {
     setPeriod(null)
     setCustomers([])
     setBills(null)
+    setBalances({})
+    setAccounts([])
+    setPayFilter('ALL')
     setCustomerId('')
     setPage(0)
     setSelectedBill(null)
@@ -177,15 +193,20 @@ function App() {
     setLoading(true)
     setError('')
     try {
-      const [periodResponse, customerResponse, billResponse] = await Promise.all([
+      const [periodResponse, customerResponse, billResponse, balanceResponse, accountResponse] = await Promise.all([
         apiRequest<BillingPeriod>(`/owner/billing-periods/${selectedPeriod}`, authToken),
         apiRequest<Customer[]>('/owner/customers', authToken),
         apiRequest<Page<Bill>>(`/owner/bills?period=${selectedPeriod}&page=${selectedPage}&size=${PAGE_SIZE}`, authToken),
+        // Payment status is extra information: if it cannot load, billing itself still works.
+        getPeriodBalances(authToken, selectedPeriod).catch(() => [] as BillBalance[]),
+        getAccountsWithBalances(authToken).catch(() => [] as AccountSummary[]),
       ])
       if (requestId !== workspaceRequestId.current) return
       setPeriod(periodResponse)
       setCustomers(customerResponse)
       setBills(billResponse)
+      setBalances(Object.fromEntries(balanceResponse.map((balance) => [balance.billId, balance])))
+      setAccounts(accountResponse)
       setSelectedBill((current) => current
         ? billResponse.content.find((bill) => bill.id === current.id) ?? null
         : null)
@@ -570,6 +591,19 @@ return (
             </article>
           </section>
 
+          {Object.keys(balances).length > 0 && (() => {
+            const list = Object.values(balances)
+            const sum = (pick: (balance: BillBalance) => number) => list.reduce((total, balance) => total + pick(balance), 0)
+            const owing = list.filter((balance) => balance.due > 0).length
+            return (
+              <section className="summary-grid payment-summary" aria-label="Payments for this month">
+                <article className="summary-card"><p className="summary-label">BILLED</p><h2>{formatAmount(sum((b) => b.amountToPay))}</h2><p className="summary-foot">{list.length} issued bill{list.length === 1 ? '' : 's'}</p></article>
+                <article className="summary-card"><p className="summary-label">RECEIVED</p><h2 className="money-credit">{formatAmount(sum((b) => b.paid))}</h2><p className="summary-foot">{list.length - owing} paid in full</p></article>
+                <article className="summary-card"><p className="summary-label">STILL OWED</p><h2 className={owing ? 'money-owed' : 'money-credit'}>{formatAmount(sum((b) => b.due))}</h2><p className="summary-foot">{owing} customer{owing === 1 ? '' : 's'} still owe</p></article>
+              </section>
+            )
+          })()}
+
           <section className="workflow-card">
             <div className="workflow-intro">
               <div className="step-badge">01</div>
@@ -619,11 +653,24 @@ return (
                 {loading ? 'Refreshing…' : '↻ Refresh'}
               </button>
             </div>
+            {Object.keys(balances).length > 0 && (
+              <div className="pay-filters" role="group" aria-label="Filter by payment status">
+                {(['ALL', 'UNPAID', 'PART_PAID', 'PAID'] as const).map((filter) => {
+                  const count = filter === 'ALL' ? bills?.content.length ?? 0
+                    : Object.values(balances).filter((balance) => balance.status === filter).length
+                  return (
+                    <button key={filter} type="button" aria-pressed={payFilter === filter} onClick={() => setPayFilter(filter)}>
+                      {filter === 'ALL' ? 'All' : billPaymentStatusLabel(filter)} · {count}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             <div className="table-wrap">
               <table>
-                <thead><tr><th>CUSTOMER</th><th>PERIOD</th><th>RECORDS</th><th>TOTAL</th><th>STATUS</th><th><span className="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>CUSTOMER</th><th>PERIOD</th><th>RECORDS</th><th>TOTAL</th><th>STATUS</th><th>PAYMENT</th><th><span className="sr-only">Actions</span></th></tr></thead>
                 <tbody>
-                  {bills?.content.map((bill) => (
+                  {bills?.content.filter((bill) => payFilter === 'ALL' || balances[bill.id]?.status === payFilter).map((bill) => (
                     <tr key={bill.id} className={selectedBill?.id === bill.id ? 'selected-row' : ''}>
                       <td><button className="customer-cell" onClick={() => setSelectedBill(selectedBill?.id === bill.id ? null : bill)}>
                         <span className="customer-avatar">{bill.customerName.trim().charAt(0).toUpperCase()}</span>
@@ -633,23 +680,38 @@ return (
                       <td>{bill.lines.length} <span className="muted">items</span></td>
                       <td className="amount-cell">{formatAmount(bill.totalAmount)}</td>
                       <td><span className={`status-pill ${bill.status.toLowerCase()}`}>{bill.status}</span></td>
+                      <td>{balances[bill.id] ? (
+                        <span className="pay-cell">
+                          <span className={`status-pill pay-${balances[bill.id].status.toLowerCase()}`}>{billPaymentStatusLabel(balances[bill.id].status)}</span>
+                          {balances[bill.id].due > 0 && <small>{formatAmount(balances[bill.id].due)} due</small>}
+                        </span>
+                      ) : <span className="muted">—</span>}</td>
                       <td className="row-action">{bill.status === 'DRAFT' && <button className="issue-button"
                         onClick={() => void issueBill(bill)} disabled={busyAction !== ''}>
                         {busyAction === bill.id ? 'Issuing…' : 'Issue'}
                       </button>}</td>
                     </tr>
                   ))}
-                  {!loading && bills?.content.length === 0 && <tr><td colSpan={6} className="empty-state">
+                  {!loading && bills?.content.length === 0 && <tr><td colSpan={7} className="empty-state">
                     <span className="empty-icon">▤</span><strong>No bills for this month yet</strong>
                     <span>{period?.status === 'CLOSED'
                       ? 'Generate a draft for a monthly customer with chargeable records.'
                       : 'Close the period before generating bills.'}</span>
                   </td></tr>}
-                  {loading && !bills && <tr><td colSpan={6} className="empty-state">Loading billing records…</td></tr>}
+                  {loading && !bills && <tr><td colSpan={7} className="empty-state">Loading billing records…</td></tr>}
                 </tbody>
               </table>
             </div>
-            {selectedBill && <BillDetail bill={selectedBill} onClose={() => setSelectedBill(null)} />}
+            {selectedBill && (
+              <BillDetail
+                bill={selectedBill}
+                balance={balances[selectedBill.id] ?? null}
+                token={token}
+                onChanged={() => void loadWorkspace(token, periodId, page)}
+                onSessionExpired={expireSession}
+                onClose={() => setSelectedBill(null)}
+              />
+            )}
             <div className="table-footer">
               <span>{bills ? `${bills.totalElements} bill${bills.totalElements === 1 ? '' : 's'} · page ${bills.totalPages === 0 ? 0 : bills.number + 1} of ${bills.totalPages}` : '—'}</span>
               <div className="pagination">
@@ -660,6 +722,28 @@ return (
               </div>
             </div>
           </section>
+          {accounts.length > 0 && (
+            <section className="bills-section" aria-labelledby="balances-title">
+              <div className="section-heading">
+                <div><p className="eyebrow">ALL MONTHS</p><h2 id="balances-title">Customers with balances</h2></div>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>CUSTOMER</th><th>PHONE</th><th>OWES</th><th>CREDIT</th></tr></thead>
+                  <tbody>
+                    {accounts.map((account) => (
+                      <tr key={account.customerId}>
+                        <td><strong>{account.name}</strong></td>
+                        <td>{account.phone ?? '—'}</td>
+                        <td className={`amount-cell${account.amountDue > 0 ? ' money-owed' : ''}`}>{formatAmount(account.amountDue)}</td>
+                        <td className={`amount-cell${account.credit > 0 ? ' money-credit' : ''}`}>{formatAmount(account.credit)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
           <footer className="page-footer"><span>Radhika Farms <b>·</b> Owner billing</span><span>All times and business dates follow Asia/Kolkata.</span></footer>
         </div>
       </main>
@@ -667,7 +751,16 @@ return (
   )
 }
 
-function BillDetail({ bill, onClose }: { bill: Bill; onClose: () => void }) {
+type BillDetailProps = {
+  bill: Bill
+  balance: BillBalance | null
+  token: string
+  onChanged: () => void
+  onSessionExpired: () => void
+  onClose: () => void
+}
+
+function BillDetail({ bill, balance, token, onChanged, onSessionExpired, onClose }: BillDetailProps) {
   return (
     <section className="bill-detail" aria-label={`Bill details for ${bill.customerName}`}>
       <div className="detail-heading">
@@ -687,8 +780,22 @@ function BillDetail({ bill, onClose }: { bill: Bill; onClose: () => void }) {
         customerName={bill.customerName}
         customerPhone={bill.customerPhone}
         customerAddress={bill.customerAddress}
+        balance={balance}
       />
       <p className="snapshot-note">Values are preserved from the bill snapshot and are not recalculated from current product prices.</p>
+      {bill.status === 'ISSUED' ? (
+        <OwnerBillPayments
+          key={bill.customerId}
+          token={token}
+          customerId={bill.customerId}
+          customerName={bill.customerName}
+          billId={bill.id}
+          onChanged={onChanged}
+          onSessionExpired={onSessionExpired}
+        />
+      ) : (
+        <p className="alert pending-alert">Issue this bill before recording payments against it.</p>
+      )}
     </section>
   )
 }
