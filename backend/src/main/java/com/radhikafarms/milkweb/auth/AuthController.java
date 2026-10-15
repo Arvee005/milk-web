@@ -1,5 +1,7 @@
 package com.radhikafarms.milkweb.auth;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,8 +29,16 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthService.LoginResponse login(@RequestBody @Validated LoginRequest request) {
-        return authService.login(request.phone(), request.password());
+    public AuthService.LoginResponse login(@RequestBody @Validated LoginRequest request,
+                                           HttpServletRequest httpRequest) {
+        return authService.login(request.phone(), request.password(), ClientIpResolver.resolve(httpRequest));
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<AuthService.LoginResponse> register(@RequestBody @Validated RegisterCustomerRequest request,
+                                                              HttpServletRequest httpRequest) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(authService.register(request, ClientIpResolver.resolve(httpRequest)));
     }
 
     @GetMapping("/me")
@@ -50,6 +60,13 @@ public class AuthController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public Map<String, String> customerCheck() {
         return Map.of("access", "customer");
+    }
+
+    @ExceptionHandler(TooManyAttemptsException.class)
+    public ResponseEntity<Map<String, String>> handleTooManyAttempts(TooManyAttemptsException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)

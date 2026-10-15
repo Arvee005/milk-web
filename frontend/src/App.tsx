@@ -8,8 +8,10 @@ import {
   readSessionToken,
   storeSessionToken,
   type AuthenticatedUser,
+  type LoginResponse,
   workspaceForRole,
 } from './authApi'
+import CustomerRegistration from './CustomerRegistration'
 import CustomerWorkspace from './CustomerWorkspace'
 import OwnerCustomers from './OwnerCustomers'
 import OwnerDailyRecords from './OwnerDailyRecords'
@@ -24,7 +26,7 @@ type Customer = {
   name: string
   phone: string | null
   billingType: 'MONTHLY' | 'PREPAID'
-  status: 'ACTIVE' | 'PAUSED' | 'INACTIVE'
+  status: 'ACTIVE' | 'PAUSED' | 'INACTIVE' | 'PENDING'
 }
 
 type BillingPeriod = {
@@ -131,6 +133,7 @@ function App() {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
+  const [authView, setAuthView] = useState<'sign-in' | 'register'>('sign-in')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -281,6 +284,19 @@ function App() {
     }
   }
 
+  function completeRegistration(result: LoginResponse) {
+    storeSessionToken(result.token)
+    setError('')
+    setAuthView('sign-in')
+    setSession({ status: 'checking', token: result.token, user: null })
+  }
+
+  function showAuthView(view: 'sign-in' | 'register') {
+    setError('')
+    setPassword('')
+    setAuthView(view)
+  }
+
   const expireSession = useCallback(() => {
     clearSession()
     setError('Your session has expired. Please sign in again.')
@@ -373,6 +389,9 @@ function App() {
       <main className="login-page">
         <section className="login-card">
           <div className="brand-mark" aria-hidden="true">m</div>
+          {authView === 'register' ? (
+            <CustomerRegistration onRegistered={completeRegistration} onShowSignIn={() => showAuthView('sign-in')} />
+          ) : (<>
           <p className="eyebrow">MILK WEB · SECURE ACCOUNT</p>
           <h1>Your dairy account, in one place.</h1>
           <p className="login-copy">Sign in with your phone number and password. We’ll take you to the right workspace.</p>
@@ -391,6 +410,11 @@ function App() {
               {loginLoading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
+          <p className="auth-switch">
+            New customer?{' '}
+            <button type="button" className="text-button" onClick={() => showAuthView('register')}>Create an account</button>
+          </p>
+          </>)}
           <p className="privacy-note">Your session is kept only in this browser tab.</p>
         </section>
         <div className="login-art">

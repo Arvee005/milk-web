@@ -27,6 +27,7 @@ const statuses: { value: OwnerCustomerStatus; label: string }[] = [
   { value: 'ACTIVE', label: 'Active' },
   { value: 'PAUSED', label: 'Paused' },
   { value: 'INACTIVE', label: 'Inactive' },
+  { value: 'PENDING', label: 'Pending approval' },
 ]
 
 const billingTypes: { value: OwnerBillingType; label: string }[] = [
@@ -399,6 +400,9 @@ export default function OwnerCustomers({
                         {customer.status === 'ACTIVE' ? (
                           <button type="button" className="text-button" disabled={saving}
                             onClick={() => void changeStatus(customer, 'INACTIVE')}>Deactivate</button>
+                        ) : customer.status === 'PENDING' ? (
+                          <button type="button" className="text-button" disabled={saving}
+                            onClick={() => void changeStatus(customer, 'ACTIVE')}>Approve</button>
                         ) : (
                           <button type="button" className="text-button" disabled={saving}
                             onClick={() => void changeStatus(customer, 'ACTIVE')}>Reactivate</button>

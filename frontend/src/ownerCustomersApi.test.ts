@@ -220,3 +220,13 @@ describe('owner customers API client', () => {
     assert.equal(billingTypeLabel('PREPAID'), 'Prepaid')
   })
 })
+
+describe('pending self-registered customers', () => {
+  it('lists PENDING customers with an approval label', async () => {
+    const results = await getOwnerCustomers('owner-token', {
+      fetcher: async () => jsonResponse([{ ...customer(), status: 'PENDING' }]),
+    })
+    assert.equal(results[0].status, 'PENDING')
+    assert.equal(customerStatusLabel('PENDING'), 'Pending approval')
+  })
+})

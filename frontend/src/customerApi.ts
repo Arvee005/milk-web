@@ -7,7 +7,7 @@ export type CustomerProfile = {
   name: string
   address: string | null
   billingType: 'PREPAID' | 'MONTHLY'
-  status: 'ACTIVE' | 'PAUSED' | 'INACTIVE'
+  status: 'ACTIVE' | 'PAUSED' | 'INACTIVE' | 'PENDING'
   joinDate: string
 }
 
@@ -35,7 +35,8 @@ function isCustomerProfile(value: unknown): value is CustomerProfile {
     && 'name' in value && typeof value.name === 'string'
     && 'address' in value && (typeof value.address === 'string' || value.address === null)
     && 'billingType' in value && (value.billingType === 'PREPAID' || value.billingType === 'MONTHLY')
-    && 'status' in value && (value.status === 'ACTIVE' || value.status === 'PAUSED' || value.status === 'INACTIVE')
+    && 'status' in value && (value.status === 'ACTIVE' || value.status === 'PAUSED' || value.status === 'INACTIVE'
+      || value.status === 'PENDING')
     && 'joinDate' in value && typeof value.joinDate === 'string'
     && /^\d{4}-\d{2}-\d{2}$/.test(value.joinDate)
 }

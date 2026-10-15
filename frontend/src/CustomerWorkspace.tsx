@@ -263,9 +263,15 @@ function CustomerProfileView({
             <p className="customer-profile-caption">Customer profile</p>
           </div>
           <span className={`status-pill customer-status ${currentProfile.status.toLowerCase()}`}>
-            {currentProfile.status}
+            {currentProfile.status === 'PENDING' ? 'PENDING APPROVAL' : currentProfile.status}
           </span>
         </div>
+        {currentProfile.status === 'PENDING' && (
+          <p className="alert pending-alert" role="status">
+            Your account has been created and is waiting for the dairy owner to approve it. Your milk records,
+            subscriptions, and bills will appear here once the owner sets up your account.
+          </p>
+        )}
         <dl className="customer-profile-grid">
           <div><dt>Phone number</dt><dd>{currentProfile.phone || 'Not provided'}</dd></div>
           <div><dt>Address</dt><dd>{currentProfile.address || 'Not provided'}</dd></div>

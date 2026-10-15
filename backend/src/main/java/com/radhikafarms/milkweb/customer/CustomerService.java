@@ -5,9 +5,11 @@ import com.radhikafarms.milkweb.customer.exception.PhoneAlreadyRegisteredExcepti
 import com.radhikafarms.milkweb.user.User;
 import com.radhikafarms.milkweb.user.UserRole;
 import com.radhikafarms.milkweb.user.UserService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -16,35 +18,91 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final UserService userService;
+    private final Clock businessClock;
 
-    public CustomerService(CustomerRepository customerRepository, UserService userService) {
+    public CustomerService(CustomerRepository customerRepository, UserService userService, Clock businessClock) {
         this.customerRepository = customerRepository;
         this.userService = userService;
+        this.businessClock = businessClock;
     }
 
     @Transactional
     public Customer createCustomer(OwnerCreateCustomerRequest req) {
-        // check phone uniqueness
-        var existing = userService.findByPhone(req.phone());
-        if (existing.isPresent()) {
-            throw new PhoneAlreadyRegisteredException(req.phone());
+        return createCustomerAccount(
+                req.phone(),
+                req.password(),
+                req.name(),
+                req.address(),
+                req.billingType() == null ? BillingType.MONTHLY : req.billingType(),
+                req.status() == null ? CustomerStatus.ACTIVE : req.status(),
+                req.joinDate() == null ? LocalDate.now() : req.joinDate()
+        );
+    }
+
+    /**
+     * Creates a self-registered CUSTOMER account. Role, status, billing type, and join date are fixed
+     * server-side: the account starts PENDING until the owner approves it, and is billed MONTHLY by
+     * default like owner-created customers.
+     */
+    @Transactional
+    public Customer registerCustomer(String phone, String rawPassword, String name, String address) {
+        return createCustomerAccount(
+                phone,
+                rawPassword,
+                name.trim(),
+                address == null || address.isBlank() ? null : address.trim(),
+                BillingType.MONTHLY,
+                CustomerStatus.PENDING,
+                LocalDate.now(businessClock)
+        );
+    }
+
+    /**
+     * Creates the User (always CUSTOMER) and its Customer profile in the caller's transaction.
+     *
+     * <p>The pre-check gives a clean 409 in the common case. Two concurrent requests for the same phone
+     * can both pass it, so the insert is flushed here and a violation of {@code uk_users_phone} is
+     * translated to the same {@link PhoneAlreadyRegisteredException} instead of failing at commit.
+     */
+    private Customer createCustomerAccount(String phone, String rawPassword, String name, String address,
+                                           BillingType billingType, CustomerStatus status, LocalDate joinDate) {
+        if (userService.findByPhone(phone).isPresent()) {
+            throw new PhoneAlreadyRegisteredException(phone);
         }
 
         // create user (this will hash password)
-        User user = userService.createUser(req.phone(), req.password(), UserRole.CUSTOMER);
+        User user = userService.createUser(phone, rawPassword, UserRole.CUSTOMER);
 
-        // assemble customer entity
         Customer customer = new Customer();
         customer.setUser(user);
-        customer.setName(req.name());
-        customer.setPhone(req.phone());
-        customer.setAddress(req.address());
-        customer.setBillingType(req.billingType() == null ? BillingType.MONTHLY : req.billingType());
-        customer.setStatus(req.status() == null ? CustomerStatus.ACTIVE : req.status());
-        customer.setJoinDate(req.joinDate() == null ? LocalDate.now() : req.joinDate());
+        customer.setName(name);
+        customer.setPhone(phone);
+        customer.setAddress(address);
+        customer.setBillingType(billingType);
+        customer.setStatus(status);
+        customer.setJoinDate(joinDate);
 
-        Customer saved = customerRepository.save(customer);
-        return saved;
+        try {
+            return customerRepository.saveAndFlush(customer);
+        } catch (DataIntegrityViolationException ex) {
+            if (isUserPhoneConstraintViolation(ex)) {
+                throw new PhoneAlreadyRegisteredException(phone);
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isUserPhoneConstraintViolation(Throwable error) {
+        Throwable cause = error;
+        while (cause != null) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException violation
+                    && violation.getConstraintName() != null
+                    && violation.getConstraintName().toLowerCase().contains("uk_users_phone")) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     public Customer getById(UUID customerId) {

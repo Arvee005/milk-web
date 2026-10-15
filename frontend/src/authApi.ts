@@ -167,3 +167,53 @@ export async function getCurrentUser(
   }
   return body
 }
+
+export type RegistrationDetails = {
+  phone: string
+  password: string
+  name: string
+  address: string
+}
+
+const MAX_PASSWORD_BYTES = 72
+
+// Mirrors RegisterCustomerRequest on the backend so most mistakes are caught before a request is sent.
+// The server still validates everything; this is a usability check, not a security control.
+export function registrationProblem(details: RegistrationDetails): string | null {
+  if (!/^\d{10}$/.test(details.phone)) return 'Enter a valid 10-digit phone number.'
+  if (!details.name.trim()) return 'Enter your name.'
+  if (details.name.trim().length > 100) return 'Name must be at most 100 characters.'
+  if (details.password.length < 8) return 'Password must be at least 8 characters.'
+  if (new TextEncoder().encode(details.password).length > MAX_PASSWORD_BYTES) {
+    return 'Password is too long. Use at most 72 characters.'
+  }
+  if (details.address.trim().length > 500) return 'Address must be at most 500 characters.'
+  return null
+}
+
+export async function registerCustomer(
+  details: RegistrationDetails,
+  options: ApiOptions = {},
+): Promise<LoginResponse> {
+  const problem = registrationProblem(details)
+  if (problem) throw new ApiError(problem, 400)
+  const address = details.address.trim()
+  const body = await apiRequest<unknown>(
+    '/auth/register',
+    undefined,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        phone: details.phone,
+        password: details.password,
+        name: details.name.trim(),
+        address: address || null,
+      }),
+    },
+    { ...options, fallback: 'Could not create your account.' },
+  )
+  if (!isLoginResponse(body)) {
+    throw new ApiError('The server returned an invalid registration response.', 200)
+  }
+  return body
+}

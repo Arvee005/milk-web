@@ -6,7 +6,7 @@ Full-stack dairy management platform for a real family dairy business. Customers
 
 - Backend: Java 21, Spring Boot, Spring Data JPA/Hibernate, Spring Security with JWT, Maven
 - Frontend: React, TypeScript, Vite
-- Databases: H2 for development and tests; PostgreSQL is the intended production database (no production profile or migrations exist yet)
+- Databases: H2 for development and tests; PostgreSQL in production (`prod` profile, Flyway migrations in `backend/src/main/resources/db/migration`, Hibernate `ddl-auto=validate`)
 
 ## Repository layout
 
@@ -17,13 +17,15 @@ Full-stack dairy management platform for a real family dairy business. Customers
 ## Implemented functionality
 
 - JWT authentication with OWNER and CUSTOMER roles
+- Customer self-registration (`POST /api/auth/register`); new accounts are PENDING until the owner approves them
+- Login and registration rate limiting (429 with `Retry-After`; see ADR-012)
 - Owner customer and product management APIs (create, read, update, activate/deactivate)
 - Subscriptions (recurring default plan) and DailyRecords (actual daily supply), kept as separate concepts
 - BillingPeriod inspection and closing, and Bill generation/issuing from actual chargeable records
 - Owner web workspace: Billing, DailyRecord entry and review, customer setup, and product setup
 - Customer workspace: profile, today's collection, record history, subscriptions, issued bills
 
-**PLANNED / NOT YET IMPLEMENTED:** payments, balances, financial ledger, refunds, Flyway/PostgreSQL migrations, password reset, server-side customer search or pagination, owner subscription management UI, notifications, and analytics.
+**PLANNED / NOT YET IMPLEMENTED:** payments, balances, financial ledger, refunds, password reset, SMS phone verification, server-side customer search or pagination, owner subscription management UI, notifications, and analytics.
 
 ## Running locally
 
@@ -40,8 +42,11 @@ development owner, export the values and start the `dev` profile:
 cd backend
 export MILKWEB_DEV_OWNER_PHONE=9000000001
 export MILKWEB_DEV_OWNER_PASSWORD='pick-a-local-password'
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.arguments=--spring.flyway.enabled=false
 ```
+
+Known issue: the `dev` profile does not yet disable Flyway, and the PostgreSQL migrations fail on H2
+(`Unknown data type: "TIMESTAMPTZ"`), so the extra argument above is currently required.
 
 `DevOwnerSeeder` creates that OWNER with the password hashed by the existing BCrypt encoder. The `dev` profile
 uses an in-memory H2 database, so that database and the owner are recreated on every fresh start. If the phone

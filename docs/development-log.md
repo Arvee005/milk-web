@@ -827,4 +827,89 @@ blast radius small (dev profile only, explicit env vars, no committed defaults, 
 each rule with a test rather than a comment. The same shape — conditional bean, validated input, idempotent
 behavior — is what a production bootstrap command would reuse.
 
+## Milestone: Customer self-registration (2026-10-15)
+
+Commit: not yet committed (fill in after commit).
+
+### What was implemented
+- IMPLEMENTED: `POST /api/auth/register` (`AuthController.register`, `AuthService.register`) returns `201`
+  with the login response body, so the new customer is signed in immediately.
+- IMPLEMENTED: `RegisterCustomerRequest` (`phone`, `password`, `name`, optional `address`). It has no role, ID,
+  or account-state fields.
+- IMPLEMENTED: `CustomerStatus.PENDING`. Self-registered customers start PENDING; the owner approves them by
+  setting ACTIVE (the existing update endpoint; the owner Customers screen shows an "Approve" button).
+- IMPLEMENTED: `CustomerService.registerCustomer` shares a private creation method with the owner path. The
+  insert is flushed and a `uk_users_phone` violation becomes `PhoneAlreadyRegisteredException` (409).
+- IMPLEMENTED: `SecurityConfig` permits `POST /api/auth/register`.
+- IMPLEMENTED (frontend): `registerCustomer` and `registrationProblem` in `authApi.ts`, the
+  `CustomerRegistration` form, a "Create an account" / "Sign in" switch on the sign-in screen, a pending
+  approval notice in the customer workspace, and PENDING support in every status type and response check.
+- No database migration: `customers.status` is `VARCHAR(20)` without a check constraint.
+
+### Why
+Customers could not sign up themselves; only the owner could create accounts. See ADR-012.
+
+### Problems found and solved
+- The frontend response checks in `ownerCustomersApi.ts`, `customerApi.ts`, and `ownerDailyRecordsApi.ts`
+  rejected unknown statuses. Adding PENDING on the backend alone would have broken the owner's customer list
+  and daily-records screen as soon as one customer registered. All three were updated together.
+- The owner create path checked for duplicates and then inserted, but the insert only reached the database at
+  commit time. Two concurrent creates for one phone could produce a 500. The shared creation method now
+  flushes and translates the constraint violation. This was verified by temporarily removing both pre-checks
+  and running the concurrency test (1 success, 3 clean conflicts).
+- FOUND, NOT FIXED: the `dev` profile does not disable Flyway, so `./mvnw spring-boot:run` with `dev` fails on
+  H2 (`Unknown data type: "TIMESTAMPTZ"` in `V1__baseline_schema.sql`). Workaround: add
+  `--spring.flyway.enabled=false`. This predates this milestone.
+
+### Security
+Role fixed server-side; client role, ID, and status are ignored. Duplicate and concurrent duplicate phones
+give 409. The owner phone cannot be taken over. Passwords are 8 characters to 72 bytes, BCrypt-hashed, and
+never returned. Unverified phones and the lack of rate limiting are documented risks (ADR-012).
+
+### Tests
+- Backend: `RegistrationControllerTest` (9) and `CustomerRegistrationConcurrencyTest` (1).
+  `./mvnw package`: 196 tests, 0 failures, 0 errors, 0 skipped.
+- Frontend: registration API tests (5), PENDING response tests (2), and
+  `customerRegistration.component.test.tsx` (7). `npm test`: 76 API tests + 65 component tests, all passing.
+  `npm run lint` clean; `npm run build` succeeds.
+- Manual HTTP check against the packaged jar (dev profile, H2, Flyway disabled): CORS preflight, register
+  with a smuggled OWNER role (stored as CUSTOMER/PENDING), `/api/customer/me`, 403 on owner endpoints,
+  duplicate and owner-phone 409s, invalid 400, customer login, owner list and approval.
+
+### Lessons learned
+- A new enum value is an API change. Every client-side check that lists the allowed values must change at the
+  same time.
+- "Check, then insert" is not enough under concurrency; the unique constraint is the real guarantee and its
+  error needs to be translated.
+
+### Interview takeaway
+Public sign-up is a privilege boundary: fix the role on the server, let the database enforce uniqueness, and
+limit what an unverified account can do until a trusted person approves it.
+
+## Milestone: Login and registration rate limiting (2026-10-15)
+
+Commit: not yet committed (fill in after commit).
+
+- IMPLEMENTED: `AuthRateLimiter` (fixed-window counters, in memory, capped at 50,000 keys),
+  `RateLimitProperties` (`milkweb.rate-limit.*`), `TooManyAttemptsException` (429 + `Retry-After`), and
+  `ClientIpResolver` (first `X-Forwarded-For` entry, else the remote address). Wired into
+  `AuthService.login` and `AuthService.register`.
+- Why: unlimited password guessing was possible on `/api/auth/login`, and public registration added a second
+  unauthenticated write endpoint. See ADR-012, "Rate limiting".
+- Decision: the "already registered" message stays, because a clear message matters more for customers of all
+  ages than hiding which numbers have accounts.
+- Alternatives: Bucket4j or a Redis-backed limiter (a new dependency or service, unnecessary for one instance);
+  a per-IP limit only (Render's `X-Forwarded-For` may be forgeable, so it cannot be the only protection).
+- Problems: (1) `Retry-After` was truncated to 899 seconds under a real clock; it now rounds up so clients
+  never retry early. (2) A new test context with different properties shared the `milktest` H2 database, and
+  its shutdown dropped tables used by other tests (93 errors). It now uses its own database URL, matching the
+  existing `CustomerServiceTest` pattern.
+- Tests: `AuthRateLimiterTest` (6), `AuthRateLimitTest` (3), and two frontend 429 tests. Backend 205/205,
+  frontend 78 + 65, lint clean, build succeeds. Manual HTTP check against the jar: 6th wrong password returns
+  429 with `Retry-After: 900` and the correct password is also refused, other accounts are unaffected, and the
+  11th registration from one IP returns 429.
+- Interview takeaway: limit by the thing an attacker cannot change (the target account) and treat
+  proxy-supplied IPs as hints. Bound in-memory state so the limiter cannot itself become a denial-of-service
+  vector.
+
 # End of development log (most recent milestones recorded)

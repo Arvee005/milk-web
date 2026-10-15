@@ -10,6 +10,8 @@ import {
   isOwner,
   login,
   readSessionToken,
+  registerCustomer,
+  registrationProblem,
   storeSessionToken,
   workspaceForRole,
 } from './authApi.ts'
@@ -217,5 +219,91 @@ describe('authentication API client', () => {
     }
 
     await assert.rejects(getCurrentUser('test-token', { fetcher }), TypeError)
+  })
+})
+
+describe('customer registration API client', () => {
+  const details = { phone: '9123456780', password: 'customer-pass', name: '  Asha Devi ', address: '' }
+
+  it('posts only registration fields and returns the signed-in customer', async () => {
+    let requestUrl = ''
+    let requestInit: RequestInit | undefined
+    const result = await registerCustomer(details, {
+      apiBase: '/api',
+      fetcher: async (input, init) => {
+        requestUrl = String(input)
+        requestInit = init
+        return jsonResponse({ token: 'new-token', userId: 'user-id', phone: '9123456780', role: 'CUSTOMER' }, 201)
+      },
+    })
+
+    assert.equal(requestUrl, '/api/auth/register')
+    assert.equal(requestInit?.method, 'POST')
+    assert.equal(new Headers(requestInit?.headers).get('Authorization'), null)
+    assert.deepEqual(JSON.parse(String(requestInit?.body)), {
+      phone: '9123456780',
+      password: 'customer-pass',
+      name: 'Asha Devi',
+      address: null,
+    })
+    assert.equal(result.token, 'new-token')
+    assert.equal(result.role, 'CUSTOMER')
+  })
+
+  it('validates input before sending a request', async () => {
+    let called = false
+    const fetcher: typeof fetch = async () => {
+      called = true
+      return jsonResponse({})
+    }
+    await assert.rejects(registerCustomer({ ...details, phone: '12345' }, { fetcher }), /10-digit/)
+    await assert.rejects(registerCustomer({ ...details, name: '   ' }, { fetcher }), /name/)
+    await assert.rejects(registerCustomer({ ...details, password: 'short' }, { fetcher }), /at least 8/)
+    assert.equal(called, false)
+  })
+
+  it('measures the password limit in bytes like BCrypt', () => {
+    assert.equal(registrationProblem({ ...details, password: 'a'.repeat(72) }), null)
+    assert.match(registrationProblem({ ...details, password: 'a'.repeat(73) }) ?? '', /too long/)
+    assert.match(registrationProblem({ ...details, password: '€'.repeat(25) }) ?? '', /too long/)
+  })
+
+  it('shows the server message for a phone that is already registered', async () => {
+    await assert.rejects(
+      registerCustomer(details, {
+        fetcher: async () => jsonResponse({ error: 'Phone number already registered: 9123456780' }, 409),
+      }),
+      (error: unknown) => error instanceof ApiError && error.status === 409
+        && /already registered/.test(error.message),
+    )
+  })
+
+  it('rejects a malformed success response', async () => {
+    await assert.rejects(
+      registerCustomer(details, { fetcher: async () => jsonResponse({ token: '' }, 201) }),
+      /invalid registration response/,
+    )
+  })
+})
+
+describe('rate-limited authentication', () => {
+  const tooMany = { error: 'Too many attempts. Please wait 15 minutes and try again.' }
+
+  it('shows the wait message when sign-in is rate limited', async () => {
+    await assert.rejects(
+      login('9123456780', 'customer-pass', { fetcher: async () => jsonResponse(tooMany, 429) }),
+      (error: unknown) => error instanceof ApiError && error.status === 429
+        && error.message === tooMany.error && !isUnauthenticatedError(error),
+    )
+  })
+
+  it('shows the wait message when registration is rate limited', async () => {
+    await assert.rejects(
+      registerCustomer(
+        { phone: '9123456780', password: 'customer-pass', name: 'Asha', address: '' },
+        { fetcher: async () => jsonResponse(tooMany, 429) },
+      ),
+      (error: unknown) => error instanceof ApiError && error.status === 429 && error.message === tooMany.error,
+    )
   })
 })

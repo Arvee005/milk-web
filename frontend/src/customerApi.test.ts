@@ -97,3 +97,15 @@ describe('customer profile API', () => {
     })
   })
 })
+
+describe('pending customer profile', () => {
+  it('accepts a self-registered PENDING profile', async () => {
+    const result = await getCustomerProfile('customer-token', {
+      fetcher: async () => new Response(JSON.stringify({
+        id: 'customer-id', userId: 'user-id', phone: '9123456780', name: 'Asha', address: null,
+        billingType: 'MONTHLY', status: 'PENDING', joinDate: '2026-10-15',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    })
+    assert.equal(result.status, 'PENDING')
+  })
+})

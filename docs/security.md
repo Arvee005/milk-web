@@ -20,9 +20,22 @@ Authorization
 - SecurityConfig enforces role-based restrictions:
   - /api/owner/** requires ROLE_OWNER
   - /api/customer/** requires ROLE_CUSTOMER
-  - POST /api/auth/login and /actuator/health are public
+  - POST /api/auth/login, POST /api/auth/register, and /actuator/health are public
 - Controllers use @PreAuthorize where needed and rely on URL-based restrictions.
 - The browser checks `/api/auth/me` before displaying either protected workspace and selects OWNER/CUSTOMER UI only from the verified response role. This is a usability boundary, not an authorization control; every protected API still enforces its role on the backend.
+
+Customer self-registration (IMPLEMENTED; see ADR-012)
+- `POST /api/auth/register` is public, like login. The request DTO has no role, ID, or account-state fields, and `CustomerService.registerCustomer` always creates role CUSTOMER with status PENDING. Client-supplied `role`, `userId`, `status`, and `billingType` are ignored (verified by `RegistrationControllerTest`).
+- Passwords: at least 8 characters, at most 72 UTF-8 bytes (BCrypt's limit), hashed with the existing encoder, never returned.
+- Duplicate phones, including the OWNER's phone and concurrent duplicates, return 409 and leave the existing account unchanged. The `uk_users_phone` constraint is the final guarantee; its violation is translated to 409.
+- PENDING customers can read only their own data through `/api/customer/**`. They cannot receive subscriptions or daily records until the owner sets them ACTIVE.
+- Known risks (accepted for now): phone numbers are not verified, so someone can register a number they do not own. SMS verification is deferred because it needs a paid provider. A 409 reveals that a number is registered; the owner accepted this so that customers of all ages get a clear message.
+
+Login and registration rate limiting (IMPLEMENTED; details in ADR-012)
+- `AuthRateLimiter` limits failed logins per phone (5 per 15 minutes) and per client IP (30 per 15 minutes), and registration attempts per client IP (10 per hour). Over a limit: 429 with `Retry-After`.
+- A blocked phone is rejected before the password check. Successful login clears that phone's counter.
+- Client IP is the first `X-Forwarded-For` entry (Render's proxy). It may be forgeable, so the per-phone limit, which does not use IP, is the main protection against password guessing.
+- Trade-offs: anyone can pause logins for a known phone (including the owner's) for 15 minutes; counters are in memory, per instance, and reset on restart; at most 50,000 keys are tracked (fail open beyond that).
 
 Frontend session handling (IMPLEMENTED)
 - Login sends the entered 10-digit phone and password to `POST /api/auth/login`; the password is not persisted.

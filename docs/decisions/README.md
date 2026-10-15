@@ -25,3 +25,4 @@ Keep ADRs factual. If the true reason is unknown, mark it as an inference with t
 Current authentication and frontend decisions:
 - ADR-001 — backend JWT authentication
 - ADR-009 — browser login, tab-scoped token session, and owner workspace protection
+- ADR-012 — public customer self-registration with owner approval (PENDING status)

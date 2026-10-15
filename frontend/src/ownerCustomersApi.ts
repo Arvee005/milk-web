@@ -1,6 +1,6 @@
 import { apiRequest } from './authApi.ts'
 
-export type OwnerCustomerStatus = 'ACTIVE' | 'PAUSED' | 'INACTIVE'
+export type OwnerCustomerStatus = 'ACTIVE' | 'PAUSED' | 'INACTIVE' | 'PENDING'
 export type OwnerBillingType = 'PREPAID' | 'MONTHLY'
 
 export type OwnerCustomer = {
@@ -44,6 +44,7 @@ const CUSTOMER_STATUS_LABELS: Record<OwnerCustomerStatus, string> = {
   ACTIVE: 'Active',
   PAUSED: 'Paused',
   INACTIVE: 'Inactive',
+  PENDING: 'Pending approval',
 }
 
 const BILLING_TYPE_LABELS: Record<OwnerBillingType, string> = {
@@ -73,7 +74,8 @@ function isOwnerCustomer(value: unknown): value is OwnerCustomer {
     && 'name' in value && typeof value.name === 'string'
     && 'address' in value && (typeof value.address === 'string' || value.address === null)
     && 'billingType' in value && (value.billingType === 'PREPAID' || value.billingType === 'MONTHLY')
-    && 'status' in value && (value.status === 'ACTIVE' || value.status === 'PAUSED' || value.status === 'INACTIVE')
+    && 'status' in value && (value.status === 'ACTIVE' || value.status === 'PAUSED' || value.status === 'INACTIVE'
+      || value.status === 'PENDING')
     && 'joinDate' in value && typeof value.joinDate === 'string' && validDate(value.joinDate)
 }
 

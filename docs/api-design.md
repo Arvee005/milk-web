@@ -10,7 +10,17 @@ Existing endpoints (verified in code)
 - Response: AuthService.LoginResponse { token, userId, phone, role }
 - Validation: phone 10-digit pattern, password not blank
 - Security: public (permitAll)
-- Errors: 401 Unauthorized for bad credentials
+- Errors: 401 Unauthorized for bad credentials; 429 Too Many Requests with `Retry-After` after 5 failed logins for one phone or 30 from one client IP within 15 minutes
+
+1b) POST /api/auth/register (IMPLEMENTED; see ADR-012)
+- Controller: AuthController.register -> AuthService.register -> CustomerService.registerCustomer
+- Request: RegisterCustomerRequest { phone: 10-digit string, password: 8 chars to 72 UTF-8 bytes, name: not blank, max 100, address?: max 500 }
+- No role, id, userId, status, billingType, or joinDate field. Unknown JSON fields are ignored, so a supplied `role` has no effect.
+- Server-set values: User role CUSTOMER; Customer status PENDING, billingType MONTHLY, joinDate = today (Asia/Kolkata); name and address trimmed, blank address stored as null.
+- Response: 201 Created with AuthService.LoginResponse { token, userId, phone, role: "CUSTOMER" } (the customer is signed in immediately)
+- Security: public (permitAll, POST only)
+- Errors: 400 `{ "error": "<field>: <message>" }` for invalid input; 409 `{ "error": "Phone number already registered: <phone>" }`, including concurrent duplicate requests; 429 with `Retry-After` after 10 attempts from one client IP within an hour
+- A PENDING customer can use `/api/customer/**` for their own data. Owner subscription and daily-record creation return 409 until the owner sets the customer ACTIVE through `PUT /api/owner/customers/{id}`.
 
 2) GET /api/auth/me
 - Controller: AuthController.me
@@ -259,7 +269,7 @@ Historical immutability when editing a product:
 - Changing `price` does not alter historical `DailyRecord` amounts or issued bills. Each record stores its own `unitPriceSnapshot` and `amount`, and `BillLine` persists `description`, `unit_price`, and `amount` as `updatable = false`. The billing package never reads `ProductRepository`.
 - Changing `name` or `unit` **does** change how already-collected records are labelled on the customer-facing endpoints, because `CustomerDailyRecordController` and `CustomerSubscriptionController` resolve `getProduct().getName()` and `getUnit()` live rather than from a snapshot. The owner workspace warns about this and requires explicit confirmation before saving such a change.
 
-**PLANNED / NOT YET IMPLEMENTED:** password reset or password change for any account, owner-side customer search/pagination on the server, customer deletion, product deletion, and any owner-facing subscription management.
+**PLANNED / NOT YET IMPLEMENTED:** password reset or password change for any account, SMS phone verification, owner-side customer search/pagination on the server, customer deletion, product deletion, and any owner-facing subscription management.
 
 ## Billing Period Management (IMPLEMENTED)
 

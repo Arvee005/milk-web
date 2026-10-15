@@ -29,4 +29,4 @@
 
 ## Remaining Limitations
 - Live production deployment and end-to-end smoke tests remain to be completed.
-- Payment processing, password reset, and public customer registration are not implemented.
+- Payment processing and password reset are not implemented. Public customer registration was added on 2026-10-15 without a migration (see ADR-012).

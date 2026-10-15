@@ -7,7 +7,7 @@ export type OwnerCustomerOption = {
   id: string
   name: string
   phone: string | null
-  status: 'ACTIVE' | 'PAUSED' | 'INACTIVE'
+  status: 'ACTIVE' | 'PAUSED' | 'INACTIVE' | 'PENDING'
 }
 
 export type OwnerProductOption = {
@@ -60,7 +60,8 @@ function isOwnerCustomerOption(value: unknown): value is OwnerCustomerOption {
   return 'id' in value && typeof value.id === 'string'
     && 'name' in value && typeof value.name === 'string'
     && 'phone' in value && (typeof value.phone === 'string' || value.phone === null)
-    && 'status' in value && (value.status === 'ACTIVE' || value.status === 'PAUSED' || value.status === 'INACTIVE')
+    && 'status' in value && (value.status === 'ACTIVE' || value.status === 'PAUSED' || value.status === 'INACTIVE'
+      || value.status === 'PENDING')
 }
 
 function isOwnerProductOption(value: unknown): value is OwnerProductOption {
