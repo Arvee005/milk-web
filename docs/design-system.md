@@ -51,4 +51,6 @@ red on cream 5.8:1. Barn red on cocoa (2.0:1) and cream on sky (2.1:1) fail, so 
 - The old time-of-day themes (morning, afternoon, evening, night) were removed on the owner's request,
   together with `TimeTheme.ts` and `MilkCanMascot.tsx`.
 - The workspace sidebar is restyled as a cocoa header band with CSS only; component markup is unchanged.
+- Calendar marks: filled green = collected, butter with a cocoa ring = extra, red ring = skipped, dashed ring =
+  paused. Each mark is one record, morning first. Day buttons carry a spoken label listing each slot's status.
 - User-facing text says "Radhika Farms". "Milk Web" remains the project and repository name.

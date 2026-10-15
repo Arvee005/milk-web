@@ -37,6 +37,7 @@ import {
   type CustomerBill,
   type CustomerBillPage,
 } from './billsApi'
+import CustomerMonth from './CustomerMonth'
 
 type CustomerSection = 'overview' | 'records' | 'subscriptions' | 'bills' | 'profile'
 
@@ -529,7 +530,7 @@ export default function CustomerWorkspace({
               <h1>{title}</h1>
               <p className="page-subtitle">
                 {activeSection === 'overview'
-                  ? 'A clear view of today’s recorded collections.'
+                  ? 'Your collections this month, and what was recorded today.'
                   : activeSection === 'records'
                     ? 'Review your recorded collections by date, slot, and status.'
                       : activeSection === 'subscriptions'
@@ -541,7 +542,14 @@ export default function CustomerWorkspace({
             </div>
           </div>
 
-          {activeSection === 'overview' ? (
+          {activeSection === 'overview' ? (<>
+            <CustomerMonth
+              token={token}
+              today={today}
+              joinDate={profile?.joinDate ?? null}
+              onSessionExpired={onSessionExpired}
+              onOpenBills={() => setActiveSection('bills')}
+            />
             <section className="today-collections" aria-labelledby="today-collections-title">
               <div className="section-heading">
                 <div><p className="eyebrow">COLLECTIONS</p><h2 id="today-collections-title">Today <span className="today-date">{formatRecordDate(today)}</span></h2></div>
@@ -576,7 +584,7 @@ export default function CustomerWorkspace({
                 </div>
               ) : null}
             </section>
-          ) : activeSection === 'records' ? (
+          </>) : activeSection === 'records' ? (
             <section className="records-history" aria-labelledby="records-history-title">
               <form className="records-filter" onSubmit={applyHistoryFilters}>
                 <label>From<input type="date" value={fromDate} max={today} onChange={(event) => setFromDate(event.target.value)} /></label>

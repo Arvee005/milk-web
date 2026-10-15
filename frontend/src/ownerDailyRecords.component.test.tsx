@@ -317,6 +317,33 @@ describe('owner daily records React workflow', { concurrency: false }, () => {
     ))))
   })
 
+  it('steps the review to earlier days and back without changing other filters', async () => {
+    const requestedUrls: string[] = []
+    const fetcher = baseFetcher([], (url) => {
+      requestedUrls.push(url)
+      return jsonResponse(recordPage([]))
+    })
+    await showDailyRecords(fetcher)
+    await screen.findByRole('heading', { name: 'Recorded collections' })
+    const filterForm = within(screen.getByRole('form', { name: 'Filter daily records' }))
+    fireEvent.change(filterForm.getByLabelText('Slot'), { target: { value: 'MORNING' } })
+    fireEvent.click(filterForm.getByRole('button', { name: 'Apply filters' }))
+    const next = screen.getByRole('button', { name: 'Next day' }) as HTMLButtonElement
+    assert.equal(next.disabled, true)
+
+    const yesterday = new Date(`${todayInIndia()}T00:00:00Z`)
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+    const yesterdayValue = yesterday.toISOString().slice(0, 10)
+    fireEvent.click(screen.getByRole('button', { name: 'Previous day' }))
+    await waitFor(() => assert.ok(requestedUrls.some((url) => url.includes(`recordDate=${yesterdayValue}`) && url.includes('slot=MORNING'))))
+    assert.equal((filterForm.getByLabelText('Date') as HTMLInputElement).value, yesterdayValue)
+    assert.equal(next.disabled, false)
+
+    fireEvent.click(next)
+    await waitFor(() => assert.equal((filterForm.getByLabelText('Date') as HTMLInputElement).value, todayInIndia()))
+    assert.equal(next.disabled, true)
+  })
+
   it('keeps forbidden responses visible and expires the session on unauthorized responses', async () => {
     const forbiddenFetcher: typeof fetch = async (input) => {
       const url = String(input)

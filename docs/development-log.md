@@ -934,4 +934,33 @@ Commit: not yet committed (fill in after commit).
   light and dark mode (sign-in, sign-up, owner billing, daily records, customers, customer overview, bills,
   pending account). No page scrolls sideways.
 
+## Milestone: Redesign phase 2, collection calendar and month summary (2026-10-15)
+
+Commit: not yet committed (fill in after commit).
+
+- IMPLEMENTED (customer Overview): `CustomerMonth.tsx` shows the month at a glance (litres collected,
+  collections, amount so far or month total, and the latest issued bill with a link to Bills), a Monday-first
+  collection calendar with one mark per record (collected, extra, skipped, paused), and the details of a tapped
+  day. ‹ › arrows move between months, from the month the customer joined up to the current month. Future days
+  cannot be chosen.
+- IMPLEMENTED (owner Daily records): ‹ › arrows step the review list one day at a time, keeping the other
+  filters; the next arrow stops at today.
+- IMPLEMENTED: `monthCalendar.ts` holds the pure logic (month arithmetic, month date range, totals, calendar
+  cells) and `getCustomerMonthRecords`, which follows every page because the API returns at most 100 records per
+  request and a month can hold more (2 products x 2 slots x 31 days = 124).
+- No backend change: the existing customer daily-records and bills endpoints already provide the data, still
+  scoped to the signed-in customer.
+- Wording: the summary says "Amount so far" and "Latest bill", not "outstanding". Payments are not recorded yet,
+  so an unpaid balance cannot be shown truthfully (phase 4).
+- Fixed: a phase 1 style made the Morning/Evening radio buttons on the owner entry form full width and 48px
+  tall. They are now normal 20px controls.
+- Problems: `customerMonth.ts` and `CustomerMonth.tsx` collided on the case-insensitive macOS file system; the
+  logic file is named `monthCalendar.ts`.
+- Tests: `monthCalendar.test.ts` (9: month arithmetic across years and leap years, range up to today, every page
+  requested with no customer ID, totals that ignore skipped/paused and separate litres from kilograms, rounding,
+  Monday-first cells, slot order) and `customerMonth.component.test.tsx` (7: summary, day details, future days
+  disabled, month navigation limits, latest-bill link, no-bill message, error retry and 401 expiry), plus one
+  owner test for the day arrows. `npm test` 87 API + 73 component tests pass; lint clean; build succeeds.
+  Screenshots with seeded data checked at 1280px and 390px in light and dark mode.
+
 # End of development log (most recent milestones recorded)

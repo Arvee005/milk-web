@@ -251,6 +251,18 @@ export default function OwnerDailyRecords({
     setUnitPriceSnapshot(activeProduct ? String(activeProduct.price) : '')
   }
 
+  // Steps the review to the previous or next day, keeping the other filters as they are.
+  function showReviewDay(delta: number) {
+    const date = new Date(`${filters.recordDate}T00:00:00Z`)
+    date.setUTCDate(date.getUTCDate() + delta)
+    const recordDate = date.toISOString().slice(0, 10)
+    if (recordDate > today) return
+    setRecordsError('')
+    const nextFilters = { ...filters, recordDate, page: 0 }
+    setFilters(nextFilters)
+    setFilterDraft(nextFilters)
+  }
+
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!filterDraft.recordDate || filterDraft.recordDate > today) {
@@ -479,9 +491,16 @@ export default function OwnerDailyRecords({
           <section className="daily-review" aria-labelledby="daily-review-title">
                 <div className="section-heading">
                   <div><p className="eyebrow">RECORD REVIEW</p><h2 id="daily-review-title">Recorded collections</h2></div>
-                  <button className="text-button" onClick={() => void loadRecords(filters)} disabled={recordsLoading}>
-                    {recordsLoading ? 'Refreshing…' : 'Refresh'}
-                  </button>
+                  <div className="review-day-controls">
+                    <div className="month-nav" role="group" aria-label="Choose review day">
+                      <button type="button" onClick={() => showReviewDay(-1)} aria-label="Previous day">‹</button>
+                      <output aria-live="polite">{filters.recordDate === today ? 'Today' : formatDate(filters.recordDate)}</output>
+                      <button type="button" onClick={() => showReviewDay(1)} disabled={filters.recordDate >= today} aria-label="Next day">›</button>
+                    </div>
+                    <button className="text-button" onClick={() => void loadRecords(filters)} disabled={recordsLoading}>
+                      {recordsLoading ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                  </div>
                 </div>
                 <form className="daily-record-filters" aria-label="Filter daily records" onSubmit={applyFilters}>
                   <label htmlFor="daily-record-filter-date">Date
