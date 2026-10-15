@@ -4,11 +4,33 @@
 
 This guide is for the farm owner to confirm the business rules needed before Milk Web implements payment and balance functionality. It translates the proposed design in [Payment and Balance Domain Design](./payment-domain-design.md) and [ADR-010](./decisions/ADR-010-customer-financial-ledger.md) into operational choices.
 
-**Every recommendation below is pending owner approval. Nothing in this guide is an approved farm policy or implemented behavior.** No payment functionality exists yet.
+**All decisions were approved on 2026-10-15; see "Decisions recorded" below.** No payment functionality exists yet.
 
 Related current-state references: [database design](./database-design.md), [API design](./api-design.md), [security](./security.md), and [architecture](./architecture.md).
 
 The current system stores bill amounts but no currency, payments, allocations, refunds, adjustments, or balances. Bills are created as DRAFT and explicitly issued by an OWNER. `ISSUED` means issued, not paid. `PREPAID` currently only excludes a customer from monthly bill generation; the software does not implement prepaid collections or customer credit.
+
+## Decisions recorded (2026-10-15)
+
+The project owner answered every decision below on behalf of Radhika Farms. These replace the recommended defaults
+in the sections that follow. Payments are still **not implemented**; these are approved rules for the implementation to
+follow.
+
+| Decision | Approved rule |
+|---|---|
+| 1. Currency | **INR only.** All prices, bills, payments and credits are in Indian rupees. Store the currency code (`INR`) on new financial records; no other currencies and no conversion. |
+| 2. Historical bills | **All existing bills are INR.** Existing bills may take part in balances and receive payments. |
+| 4. Allocation | **Automatic, oldest bill first.** A payment clears the customer's oldest unpaid issued bill, then the next oldest, and so on (for example, August's balance is cleared before September's). Order is by billing period; each customer has at most one bill per period, so no tie-break is needed. The owner sees which bills a payment will clear before saving it. |
+| 5. Advance and excess | **Kept as customer credit and carried forward.** Money left over after all unpaid bills are cleared, or paid before a bill exists, is held as credit on the customer's account. When the next bill is issued, the credit is applied to it automatically (oldest-first, as in Decision 4). Credit is shown to both the owner and the customer. |
+| 7. Refunds | **Sometimes returned; the owner records it.** When the farm gives money back, the owner records a refund event (date, amount, method, reason). A refund reduces the customer's credit and can never exceed the credit available. Milk Web does not send money; it only records what the farm did. |
+
+| 3. PREPAID customers | **They can pay in advance like anyone else; the money is held as credit.** Milk Web does not deduct credit day by day and never blocks collection because credit is low. PREPAID still only means "no monthly bill is generated". |
+| 6. Payment corrections | **A saved payment is never edited or deleted.** The owner records a linked correction with a required reason; if money was actually received, a new correct payment is recorded. Actor and time are kept on every entry. |
+| 8. Issued-bill corrections | **The bill stays as issued.** The owner adds a correction (credit or extra charge) with a reason, linked to that bill. No voiding or reissuing in the first release. |
+| 9. Adjustments | **Owner only, each with a reason** (for example "₹30 off, milk was sour"). Direction (credit or charge) is explicit and the amount is positive. No second approval. A bill-level credit cannot exceed what remains on that bill; any excess is account credit. |
+| 10. Payment methods | **Cash and UPI.** UPI has an optional reference number. A UPI payment counts as received when the money shows in the farm's account, not when the customer sends a screenshot. No card or bank details are stored. |
+
+All decisions in this guide are now approved. The sections below keep the original options and reasoning for reference.
 
 ## Decisions that depend on real-world evidence
 
@@ -209,16 +231,16 @@ These are deferrals, not approved permanent policies. Do not present incomplete 
 
 Mark each item only after the owner has reviewed the relevant farm records and explicitly approved the answer:
 
-- [ ] **Currency:** Confirm the one operating currency (or explain why multiple currencies are necessary).
-- [ ] **Historical bills:** Identify evidence for the currency of existing bills; approve which can be classified and how unresolved ones are treated.
-- [ ] **PREPAID:** Describe what PREPAID means in current operations; approve whether receipts/account credit are recorded for those customers. Confirm that consumption-based wallet behavior is deferred or specify it.
-- [ ] **Allocation:** Approve explicit owner-selected allocation, or describe the required automatic allocation order and exceptions.
-- [ ] **Advance/excess:** Approve whether advance/excess receipts are retained as unallocated credit, carried forward, returned, or handled another way.
-- [ ] **Receipt corrections:** Approve who can correct a posted receipt, required reason/evidence, and whether a second approval is required.
-- [ ] **Refunds:** Confirm whether real refunds occur; approve ledger recording or explicitly accept that balances exclude externally recorded refunds.
-- [ ] **Issued-bill corrections:** Approve adjustment versus linked void/replacement, including treatment of payments already allocated and customer notification.
-- [ ] **Adjustments:** Approve reason categories, bill/account scope, operator permissions, and any approval threshold.
-- [ ] **Methods:** Confirm cash, bank transfer, or both; define when bank money counts as received and what reference is retained.
+- [x] **Currency:** Approved 2026-10-15: INR only.
+- [x] **Historical bills:** Approved 2026-10-15: all existing bills are INR.
+- [x] **PREPAID:** Approved 2026-10-15: advance payments held as credit; no daily deduction. Original item: Describe what PREPAID means in current operations; approve whether receipts/account credit are recorded for those customers. Confirm that consumption-based wallet behavior is deferred or specify it.
+- [x] **Allocation:** Approved 2026-10-15: automatic oldest-first, with a preview before saving.
+- [x] **Advance/excess:** Approved 2026-10-15: kept as credit and applied automatically to the next issued bill.
+- [x] **Receipt corrections:** Approved 2026-10-15: never edit or delete; owner records a correction with a reason. Original item: Approve who can correct a posted receipt, required reason/evidence, and whether a second approval is required.
+- [x] **Refunds:** Approved 2026-10-15: refunds happen sometimes and the owner records them; a refund cannot exceed available credit.
+- [x] **Issued-bill corrections:** Approved 2026-10-15: bill stays as issued; owner adds a credit or charge with a reason. Original item: Approve adjustment versus linked void/replacement, including treatment of payments already allocated and customer notification.
+- [x] **Adjustments:** Approved 2026-10-15: owner only, reason required, no second approval. Original item: Approve reason categories, bill/account scope, operator permissions, and any approval threshold.
+- [x] **Methods:** Approved 2026-10-15: Cash and UPI (optional reference); UPI counts when received in the account. Original item: Confirm cash, bank transfer, or both; define when bank money counts as received and what reference is retained.
 - [ ] **Deferrals:** Approve the listed first-release deferrals and ensure no screen or report claims a complete balance when an excluded case could affect it.
 
 Until these approvals are recorded, recommendations remain proposals. Implementation should not proceed past the currency/legacy-data, PREPAID/account-credit, allocation, and minimum receipt/correction policy gates.
