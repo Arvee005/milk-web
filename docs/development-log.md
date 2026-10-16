@@ -829,7 +829,7 @@ behavior — is what a production bootstrap command would reuse.
 
 ## Milestone: Customer self-registration (2026-10-15)
 
-Commit: not yet committed (fill in after commit).
+Commit: `220a758`.
 
 ### What was implemented
 - IMPLEMENTED: `POST /api/auth/register` (`AuthController.register`, `AuthService.register`) returns `201`
@@ -888,7 +888,7 @@ limit what an unverified account can do until a trusted person approves it.
 
 ## Milestone: Login and registration rate limiting (2026-10-15)
 
-Commit: not yet committed (fill in after commit).
+Commit: `220a758`.
 
 - IMPLEMENTED: `AuthRateLimiter` (fixed-window counters, in memory, capped at 50,000 keys),
   `RateLimitProperties` (`milkweb.rate-limit.*`), `TooManyAttemptsException` (429 + `Retry-After`), and
@@ -914,7 +914,7 @@ Commit: not yet committed (fill in after commit).
 
 ## Milestone: Redesign phase 1, Radhika Farms look (2026-10-15)
 
-Commit: not yet committed (fill in after commit).
+Commit: `ea0f365`.
 
 - IMPLEMENTED: new design tokens and fonts (`index.css`), a full rewrite of `App.css` on those tokens, and a new
   public sign-in page (cocoa hero with milk-can illustration, product marquee, sign-in / create-account tabs,
@@ -936,7 +936,7 @@ Commit: not yet committed (fill in after commit).
 
 ## Milestone: Redesign phase 2, collection calendar and month summary (2026-10-15)
 
-Commit: not yet committed (fill in after commit).
+Commit: `0fce0ed`.
 
 - IMPLEMENTED (customer Overview): `CustomerMonth.tsx` shows the month at a glance (litres collected,
   collections, amount so far or month total, and the latest issued bill with a link to Bills), a Monday-first
@@ -965,7 +965,7 @@ Commit: not yet committed (fill in after commit).
 
 ## Milestone: Redesign phase 3, receipt-style bills and rupee amounts (2026-10-15)
 
-Commit: not yet committed (fill in after commit).
+Commit: `9e18ab6`.
 
 - IMPLEMENTED: `BillReceipt.tsx`, one receipt component for both customer and owner bills: farm header, bill
   number, customer details, totals per product and price, bill total, an "Issued <date>" or "Draft · not issued"
@@ -992,7 +992,7 @@ Commit: not yet committed (fill in after commit).
 
 ## Milestone: Payment ledger backend (2026-10-15)
 
-Commit: not yet committed (fill in after commit).
+Commit: `c61ccbc`.
 
 - IMPLEMENTED: Flyway `V4__create_payment_ledger.sql` (new tables only) and the `ledger` package: entities,
   repositories, `LedgerService`, owner and customer controllers, exception handler. Bill issuing now applies any
@@ -1010,7 +1010,7 @@ Commit: not yet committed (fill in after commit).
 
 ## Milestone: Payment screens (2026-10-15)
 
-Commit: not yet committed (fill in after commit).
+Commit: `c61ccbc`.
 
 - IMPLEMENTED (owner Billing): month totals (billed, received, still owed), Unpaid / Part paid / Paid filters,
   a Payment column with status and amount due, and a "Customers with balances" table. Opening an issued bill
@@ -1033,5 +1033,28 @@ Commit: not yet committed (fill in after commit).
 - Rollback note: once V4 has run, older code refuses to start because Flyway sees an applied migration it does
   not know. To roll back, deploy the older commit with `SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS=*:missing` set
   on Render; the new tables are simply ignored.
+
+## Milestone: Free hosting and faster startup (2026-10-15)
+
+Commit: not yet committed (fill in after commit).
+
+- Problem: the first visit after a break waited about a minute (Render free web services sleep after 15 minutes),
+  and the free Render database expires 30 days after creation and is then deleted. Owner chose to stay free.
+- IMPLEMENTED: `GET /actuator/health/liveness` and `/readiness` are public. Liveness includes only the app's own
+  state (configured explicitly and tested in `HealthProbeTest`), so a free uptime checker can keep the web
+  service awake without waking the free Neon database. Readiness includes the database.
+- IMPLEMENTED: Dockerfile startup tuning: unpacked jar, a Class Data Sharing archive recorded at build time
+  (training run with the in-memory dev profile, stopping at context refresh), C1-only compilation, serial GC,
+  heap at 75% of memory. Measured in Docker at 0.1 CPU / 512 MB (Render free size), two clean runs each:
+  startup 310 s and 339 s before, 84 s and 89 s after (about 3.5x faster); first login after start 12.7-14.9 s
+  before, 5.1-5.5 s after; later logins unchanged (about 2 s). Two runs disturbed by the Mac sleeping were
+  discarded. Real Render is faster in absolute terms; the ratio is what carries over. The final image also ran in
+  prod mode against PostgreSQL: 4 migrations applied, started in 1.6 s on a full CPU, login 200, no CDS warnings.
+- Follow-ups done: `dev` profile disables Flyway (H2 schema comes from Hibernate), so the README command works
+  without extra flags; owner bills table shows payment status under each name on phones; development-log commit
+  references filled in; Testcontainers moved to the Spring Boot managed 2.x line, so PostgreSQL tests no longer
+  need Docker workarounds; unused Railway start command removed (the image's entrypoint is used).
+- Owner steps (accounts and passwords stay with the owner): `docs/free-hosting.md`.
+- Tests: backend 232 run, 0 failures, 0 skipped (PostgreSQL tests included); frontend 101 + 84 pass.
 
 # End of development log (most recent milestones recorded)

@@ -518,3 +518,10 @@ td { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 16px; 
 .bills-payments h2 { margin: 0 0 10px; font-size: 22px; }
 .bills-payments ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .bills-payments li { display: grid; gap: 2px; padding-block: 10px; border-bottom: 1px solid var(--line); }
+.pay-inline { display: none; }
+@media (max-width: 640px) {
+  .customer-cell .pay-inline { display: block; font-weight: 700; }
+  .pay-inline-paid { color: var(--grass) !important; }
+  .pay-inline-part_paid { color: var(--ink) !important; }
+  .pay-inline-unpaid { color: var(--red) !important; }
+}

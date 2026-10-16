@@ -42,7 +42,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
+                        // The liveness probe is what the free uptime checker calls: it never touches the database,
+                        // so it keeps the web service awake without waking (and using up) the free database.
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/liveness",
+                                "/actuator/health/readiness").permitAll()
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/owner/**").hasRole("OWNER")
                         .requestMatchers("/api/customer/**").hasRole("CUSTOMER")

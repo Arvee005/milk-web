@@ -42,11 +42,11 @@ development owner, export the values and start the `dev` profile:
 cd backend
 export MILKWEB_DEV_OWNER_PHONE=9000000001
 export MILKWEB_DEV_OWNER_PASSWORD='pick-a-local-password'
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.arguments=--spring.flyway.enabled=false
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-Known issue: the `dev` profile does not yet disable Flyway, and the PostgreSQL migrations fail on H2
-(`Unknown data type: "TIMESTAMPTZ"`), so the extra argument above is currently required.
+The `dev` profile uses H2 with a Hibernate-created schema and disables Flyway (the migrations are for
+PostgreSQL in production).
 
 `DevOwnerSeeder` creates that OWNER with the password hashed by the existing BCrypt encoder. The `dev` profile
 uses an in-memory H2 database, so that database and the owner are recreated on every fresh start. If the phone

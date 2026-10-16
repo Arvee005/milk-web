@@ -11,6 +11,7 @@ Structure
 - testing.md — testing strategy, how tests are organized and run
 - security.md — authentication/authorization and security considerations
 - design-system.md — colours, fonts, and visual rules for the Radhika Farms look
+- free-hosting.md — free Render + Neon setup, uptime checker, and database move checklist
 - customer-dashboard-plan.md — customer/owner dashboard coverage and remaining gaps
 - financial-policy-decisions.md and payment-domain-design.md — proposed payment/balance domain (not implemented)
 - learning-notes.md — educational notes for concepts used in the project

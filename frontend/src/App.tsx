@@ -674,7 +674,14 @@ return (
                     <tr key={bill.id} className={selectedBill?.id === bill.id ? 'selected-row' : ''}>
                       <td><button className="customer-cell" onClick={() => setSelectedBill(selectedBill?.id === bill.id ? null : bill)}>
                         <span className="customer-avatar">{bill.customerName.trim().charAt(0).toUpperCase()}</span>
-                        <span><strong>{bill.customerName}</strong><small>{bill.customerPhone ?? bill.customerId.slice(0, 8)}</small></span>
+                        <span><strong>{bill.customerName}</strong><small>{bill.customerPhone ?? bill.customerId.slice(0, 8)}</small>
+                          {balances[bill.id] && (
+                            // Phones: the Payment column is off-screen, so the status also sits under the name.
+                            <small className={`pay-inline pay-inline-${balances[bill.id].status.toLowerCase()}`}>
+                              {billPaymentStatusLabel(balances[bill.id].status)}{balances[bill.id].due > 0 ? ` · ${formatAmount(balances[bill.id].due)} due` : ''}
+                            </small>
+                          )}
+                        </span>
                       </button></td>
                       <td>{formatMonth(bill.period)}</td>
                       <td>{bill.lines.length} <span className="muted">items</span></td>
